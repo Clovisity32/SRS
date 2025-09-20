@@ -214,6 +214,7 @@
                             <label class="flex items-center"><input type="radio" name="reliefType" value="range" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500 mr-1"> Period Range</label>
                             <label class="flex items-center"><input type="radio" name="reliefType" value="fullDay" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500 mr-1"> Full Day</label>
                         </div>
+                        <div id="reliefSelectionSummary" class="text-sm text-gray-600 mt-2 min-h-[20px]"></div>
                     </div>
 
                     <div id="specificPeriodsWrapper">
@@ -441,21 +442,35 @@
             function renderReliefTasksSidebar() {
                 const container = document.getElementById('reliefTasksSidebar');
                 const dateKey = currentViewDate.format('YYYY-MM-DD');
-                const tasksForDay = (reliefTasksByDate[dateKey] || []).sort((a,b) => a.periods[0].id - b.periods[0].id);
+                const tasksForDay = (reliefTasksByDate[dateKey] || []).sort((a, b) => {
+                    const statusOrder = { 'pending': 0, 'assigned': 1 };
+                    return statusOrder[a.status] - statusOrder[b.status] || a.periods[0].id - b.periods[0].id;
+                });
                 
                 if (tasksForDay.length === 0) {
                     container.innerHTML = `<p class="text-sm text-gray-500 text-center py-4">No pending relief assignments.</p>`;
                     return;
                 }
                 container.innerHTML = tasksForDay.map((task, index) => {
-                    const statusColor = task.status === 'assigned' ? 'bg-green-500' : 'bg-yellow-500';
                     const periodText = task.periods.length > 1 
                         ? `P${task.periods[0].id}-P${task.periods[task.periods.length - 1].id}`
                         : `P${task.periods[0].id}`;
-    
+
                     let splitButton = '';
                     if (task.periods.length > 1 && task.status === 'pending') {
-                         splitButton = `<button data-task-id="${task.id}" class="split-task-btn text-xs text-blue-600 hover:underline mt-1 text-left">Split Assignment</button>`;
+                        const weekType = getWeekType(dayjs(task.date));
+                        const dayOfWeek = dayjs(task.date).format('dddd').toLowerCase();
+                        const teacherTimetable = fullTimetable[task.originalTeacher.id]?.[weekType]?.[dayOfWeek] || [];
+                        
+                        const firstPeriodDetails = task.details;
+                        const isPerfectMatch = task.periods.every(p => {
+                            const slot = teacherTimetable.find(s => s.period === p.id);
+                            return slot && slot.subject === firstPeriodDetails.subject && slot.level === firstPeriodDetails.level && slot.stream === firstPeriodDetails.stream;
+                        });
+
+                        if (isPerfectMatch) {
+                            splitButton = `<button data-task-id="${task.id}" class="split-task-btn text-xs text-blue-600 hover:underline mt-1 text-left">Split Assignment</button>`;
+                        }
                     }
     
                     let combineButton = '';
@@ -471,20 +486,30 @@
                             combineButton = `<button data-task-id="${task.id}" class="combine-task-btn text-xs text-green-600 hover:underline mt-1 text-left">Combine with next</button>`;
                         }
                     }
-    
+                    
+                    const cardBgClass = task.status === 'assigned' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800';
+                    const selectedClass = selectedReliefContext && selectedReliefContext.id === task.id ? 'bg-blue-100 ring-2 ring-blue-500 text-blue-800' : `${cardBgClass} hover:opacity-80`;
+
+                    let actionButtonHTML = `<button data-task-id="${task.id}" class="edit-task-btn p-1.5 hover:bg-gray-300 rounded-full"><svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>`;
+                    if (task.status === 'assigned') {
+                        actionButtonHTML = `<button data-task-id="${task.id}" class="undo-task-btn p-1.5 hover:bg-gray-300 rounded-full" title="Undo Assignment"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" /></svg></button>`;
+                    }
+                    
+                    const multiPeriodIndicator = task.periods.length > 1 ? '<div class="absolute left-0 top-0 h-full w-1.5 bg-blue-500 rounded-l-lg"></div>' : '';
+                    const paddingClass = task.periods.length > 1 ? 'pl-6' : 'pl-3';
     
                     return `
-                    <div data-task-id="${task.id}" class="relief-task-item p-3 rounded-lg cursor-pointer ${selectedReliefContext && selectedReliefContext.id === task.id ? 'bg-blue-100 ring-2 ring-blue-500' : 'bg-gray-100 hover:bg-gray-200'}">
+                    <div data-task-id="${task.id}" class="relative relief-task-item py-3 pr-3 ${paddingClass} rounded-lg cursor-pointer ${selectedClass}">
+                        ${multiPeriodIndicator}
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="font-semibold text-sm">${task.periods[0].time} - ${periodText} (${task.periods.length} Period${task.periods.length > 1 ? 's' : ''})</p>
-                                <p class="text-xs text-gray-600">${task.details.level} ${task.details.subject} (${task.details.stream})</p>
-                                <p class="text-xs text-gray-500">Original: ${task.originalTeacher.name}</p>
+                                <p class="text-xs">${task.details.level} ${task.details.subject} (${task.details.stream})</p>
+                                <p class="text-xs text-current opacity-75">Original: ${task.originalTeacher.name}</p>
                                 <div class="flex space-x-2">${splitButton} ${combineButton}</div>
                             </div>
                             <div class="flex items-center space-x-2">
-                                <button data-task-id="${task.id}" class="edit-task-btn p-1.5 hover:bg-gray-300 rounded-full"><svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>
-                                <span class="h-2 w-2 rounded-full ${statusColor}"></span>
+                                ${actionButtonHTML}
                             </div>
                         </div>
                     </div>
@@ -492,7 +517,7 @@
     
                 container.querySelectorAll('.relief-task-item').forEach(item => {
                     item.addEventListener('click', (e) => {
-                        if (e.target.closest('.edit-task-btn') || e.target.closest('.split-task-btn') || e.target.closest('.combine-task-btn')) return;
+                        if (e.target.closest('.edit-task-btn') || e.target.closest('.split-task-btn') || e.target.closest('.combine-task-btn') || e.target.closest('.undo-task-btn')) return;
                         const taskId = item.dataset.taskId;
                         const context = tasksForDay.find(t => t.id === taskId);
                         if (context) {
@@ -513,18 +538,27 @@
                     });
                 });
                 
-                 container.querySelectorAll('.split-task-btn').forEach(btn => {
+                container.querySelectorAll('.split-task-btn').forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         const taskId = btn.dataset.taskId;
                         handleSplitAssignment(taskId);
                     });
                 });
-                 container.querySelectorAll('.combine-task-btn').forEach(btn => {
+
+                container.querySelectorAll('.combine-task-btn').forEach(btn => {
                     btn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         const taskId = btn.dataset.taskId;
                         handleCombineAssignments(taskId);
+                    });
+                });
+
+                container.querySelectorAll('.undo-task-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const taskId = btn.dataset.taskId;
+                        handleUndoAssignment(taskId);
                     });
                 });
             }
@@ -950,6 +984,7 @@
                         if (teacherId) {
                             updatePeriodSelectionForTeacher(teacherId);
                         }
+                        updateModalInteractiveState();
                     });
                 });
             }
@@ -1012,12 +1047,8 @@
                              </label>`;
                 }).join('');
     
-                 // Add event listener to enable/disable button
                 periodSelectContainer.querySelectorAll('.period-checkbox').forEach(cb => {
-                    cb.addEventListener('change', () => {
-                        const anyChecked = periodSelectContainer.querySelectorAll('.period-checkbox:checked').length > 0;
-                        findTeachersBtn.disabled = !anyChecked;
-                    });
+                    cb.addEventListener('change', updateModalInteractiveState);
                 });
             }
     
@@ -1166,6 +1197,25 @@
     
                  saveStateToLocalStorage();
                  renderUI();
+            }
+
+            function handleUndoAssignment(taskId) {
+                const dateKey = currentViewDate.format('YYYY-MM-DD');
+                const tasks = reliefTasksByDate[dateKey];
+                if (!tasks) return;
+
+                const taskIndex = tasks.findIndex(t => t.id === taskId);
+                if (taskIndex === -1) return;
+
+                tasks[taskIndex].status = 'pending';
+                tasks[taskIndex].assignedTeacher = null;
+
+                if (selectedReliefContext && selectedReliefContext.id === taskId) {
+                    selectedReliefContext = null;
+                }
+
+                saveStateToLocalStorage();
+                loadTimetableForDate(currentViewDate);
             }
     
     
@@ -1451,6 +1501,54 @@
                     });
                 }
             }
+            
+            function updateModalInteractiveState() {
+                const selectedType = document.querySelector('input[name="reliefType"]:checked').value;
+                const teacherId = teacherSelect.value;
+                const summaryEl = document.getElementById('reliefSelectionSummary');
+                
+                if (summaryEl) summaryEl.textContent = '';
+                findTeachersBtn.disabled = true;
+
+                if (!teacherId) {
+                    return;
+                }
+
+                const weekType = getWeekType(selectedReliefDateInModal);
+                const dayOfWeek = selectedReliefDateInModal.format('dddd').toLowerCase();
+                const teacherTimetableForDay = (fullTimetable[teacherId]?.[weekType]?.[dayOfWeek] || []);
+                const teachingPeriods = teacherTimetableForDay.map(slot => slot.period);
+
+                if (selectedType === 'specific') {
+                    const anyChecked = periodSelectContainer.querySelectorAll('.period-checkbox:checked').length > 0;
+                    if (anyChecked) {
+                        findTeachersBtn.disabled = false;
+                    }
+                } else if (selectedType === 'range') {
+                    const options = teacherTimetableForDay.map(slot => {
+                         const p = getPeriodDetails(slot.period);
+                         return `<option value="${p.id}">Period ${p.id} (${p.time})</option>`;
+                    }).join('');
+
+                    startPeriodSelect.innerHTML = options;
+                    endPeriodSelect.innerHTML = options;
+
+                    if(teacherTimetableForDay.length > 0) {
+                        const startVal = parseInt(startPeriodSelect.value);
+                        const endVal = parseInt(endPeriodSelect.value);
+                        if (!isNaN(startVal) && !isNaN(endVal) && endVal >= startVal) {
+                             findTeachersBtn.disabled = false;
+                        }
+                    }
+                } else if (selectedType === 'fullDay') {
+                    if (teachingPeriods.length > 0) {
+                        findTeachersBtn.disabled = false;
+                        if (summaryEl) summaryEl.textContent = `This will create relief tasks for periods: P${teachingPeriods.join(', P')}.`;
+                    } else {
+                        if (summaryEl) summaryEl.textContent = 'This teacher has no scheduled classes on this date.';
+                    }
+                }
+            }
     
             function initializeApp() {
                 assignReliefBtn.addEventListener('click', () => {
@@ -1556,11 +1654,17 @@
                          updatePeriodSelectionForTeacher(e.target.value);
                     } else {
                          periodSelectContainer.innerHTML = `<p class="text-gray-500">Please select a teacher and date.</p>`;
-                         findTeachersBtn.disabled = true;
                     }
+                    updateModalInteractiveState();
                 });
     
-                reliefTypeContainer.addEventListener('change', togglePeriodSelectionUI);
+                reliefTypeContainer.addEventListener('change', () => {
+                    togglePeriodSelectionUI();
+                    updateModalInteractiveState();
+                });
+
+                startPeriodSelect.addEventListener('change', updateModalInteractiveState);
+                endPeriodSelect.addEventListener('change', updateModalInteractiveState);
     
                 findTeachersBtn.addEventListener('click', () => {
                     const teacherId = teacherSelect.value;
@@ -1568,7 +1672,7 @@
                     let selectedPeriods = [];
     
                     const errorMessageEl = document.getElementById('modalErrorMessage');
-                    errorMessageEl.classList.add('hidden'); // Hide on each click
+                    errorMessageEl.classList.add('hidden');
 
                     const dateKeyForCheck = selectedReliefDateInModal.format('YYYY-MM-DD');
                     const tasksForDay = reliefTasksByDate[dateKeyForCheck] || [];
@@ -1586,57 +1690,85 @@
                         const start = parseInt(startPeriodSelect.value);
                         const end = parseInt(endPeriodSelect.value);
                         for (let i = start; i <= end; i++) {
-                            selectedPeriods.push(i);
+                             if ([...startPeriodSelect.options].some(opt => parseInt(opt.value) === i)) {
+                                selectedPeriods.push(i);
+                             }
                         }
                     } else { // fullDay
-                        selectedPeriods = PERIODS.map(p => p.id);
+                        const weekType = getWeekType(selectedReliefDateInModal);
+                        const dayOfWeek = selectedReliefDateInModal.format('dddd').toLowerCase();
+                        const teacherTimetableForDay = (fullTimetable[teacherId]?.[weekType]?.[dayOfWeek] || []);
+                        selectedPeriods = teacherTimetableForDay.map(slot => slot.period);
                     }
                     
                     if (selectedPeriods.length === 0) {
-                        alert("Please select at least one period.");
+                        alert("Please select at least one period. For 'Full Day' or 'Period Range' relief, ensure the teacher has scheduled classes on the selected date.");
                         return;
                     }
     
                     const weekType = getWeekType(selectedReliefDateInModal);
                     const dayOfWeek = selectedReliefDateInModal.format('dddd').toLowerCase();
                     const teacherTimetable = fullTimetable[teacherId]?.[weekType]?.[dayOfWeek] || [];
-    
-                    const reliefDetails = selectedPeriods.map(pid => {
-                        const classInfo = teacherTimetable.find(slot => slot.period === pid);
-                        return { 
-                            period: getPeriodDetails(pid), 
-                            details: classInfo ? { subject: classInfo.subject, level: classInfo.level, stream: classInfo.stream } : {} 
-                        };
+
+                    const sortedReliefDetails = selectedPeriods
+                        .map(pid => {
+                            const classInfo = teacherTimetable.find(slot => slot.period === pid);
+                            return { 
+                                period: getPeriodDetails(pid), 
+                                details: classInfo ? { subject: classInfo.subject, level: classInfo.level, stream: classInfo.stream } : { subject: null, level: null, stream: null } 
+                            };
+                        })
+                        .sort((a, b) => a.period.id - b.period.id);
+
+                    const taskGroups = [];
+                    let currentGroup = [];
+
+                    sortedReliefDetails.forEach(reliefDetail => {
+                        if (currentGroup.length === 0) {
+                            currentGroup.push(reliefDetail);
+                        } else {
+                            const lastInGroup = currentGroup[currentGroup.length - 1];
+                            const isConsecutive = reliefDetail.period.id === lastInGroup.period.id + 1;
+                            const isSameClass =
+                                reliefDetail.details.subject === lastInGroup.details.subject &&
+                                reliefDetail.details.level === lastInGroup.details.level &&
+                                reliefDetail.details.stream === lastInGroup.details.stream;
+
+                            if (isConsecutive && isSameClass) {
+                                currentGroup.push(reliefDetail);
+                            } else {
+                                taskGroups.push(currentGroup);
+                                currentGroup = [reliefDetail];
+                            }
+                        }
                     });
-                    
+                    if (currentGroup.length > 0) {
+                        taskGroups.push(currentGroup);
+                    }
+
+                    const newTasks = taskGroups.map(group => ({
+                        id: `task_${Date.now()}_${Math.random()}`,
+                        date: selectedReliefDateInModal.format('YYYY-MM-DD'),
+                        periods: group.map(d => d.period),
+                        details: group[0]?.details || {},
+                        originalTeacher: getMasterTeacherDetails(teacherId),
+                        status: 'pending',
+                    }));
+
                     const dateKey = selectedReliefDateInModal.format('YYYY-MM-DD');
-                     if (!reliefTasksByDate[dateKey]) {
+                    if (!reliefTasksByDate[dateKey]) {
                         reliefTasksByDate[dateKey] = [];
                     }
-    
+
                     if (modalMode === 'edit' && taskToEdit) {
-                        // Find and update the existing task
-                        const taskIndex = reliefTasksByDate[dateKey].findIndex(t => t.id === taskToEdit.id);
-                        if (taskIndex !== -1) {
-                             reliefTasksByDate[dateKey][taskIndex] = {
-                                 ...reliefTasksByDate[dateKey][taskIndex],
-                                 date: dateKey,
-                                 periods: reliefDetails.map(d => d.period),
-                                 details: reliefDetails[0]?.details || {}, // Assuming all periods in a task have same details
-                                 originalTeacher: getMasterTeacherDetails(teacherId)
-                             };
-                        }
+                        // When editing, remove the original task first.
+                        // The new set of tasks created from the modal selection will replace it.
+                        // This correctly handles additions, removals, and modifications to the relief periods.
+                        reliefTasksByDate[dateKey] = reliefTasksByDate[dateKey].filter(t => t.id !== taskToEdit.id);
+                        reliefTasksByDate[dateKey].push(...newTasks);
                     } else {
-                        // Create a new relief task
-                        const newReliefTask = {
-                            id: `task_${Date.now()}`,
-                            date: dateKey,
-                            periods: reliefDetails.map(d => d.period),
-                            details: reliefDetails[0]?.details || {},
-                            originalTeacher: getMasterTeacherDetails(teacherId),
-                            status: 'pending',
-                        };
-                        reliefTasksByDate[dateKey].push(newReliefTask);
+                        // For a new request, just add the new tasks.
+                        reliefTasksByDate[dateKey].push(...newTasks);
                     }
     
                     saveStateToLocalStorage();

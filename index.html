@@ -1103,17 +1103,43 @@
                         }
                     }
 
+                    // --- NEW TIERING LOGIC ---
+                    
+                    let isTier1 = false;
+                    let isTier2 = false;
 
-                    const isSubjectMatch = teacher.subjects.includes(details.subject);
-                    const isDeptMatch = teacher.department && originalTeacher.department && teacher.department === originalTeacher.department;
-
-                    if (isSubjectMatch && isDeptMatch) {
-                        candidates.G1.push({ teacher, rationale });
-                    } else if (isSubjectMatch) {
-                        candidates.G2.push({ teacher, rationale });
-                    } else {
-                        candidates.G3.push({ teacher, rationale });
+                    const teacherTimetable = fullTimetable[teacher.id] || {};
+                    // Check for Tier 1: Perfect Match (Same Level, Subject, Stream)
+                    for (const weekType in teacherTimetable) {
+                        for (const day in teacherTimetable[weekType]) {
+                            for (const slot of teacherTimetable[weekType][day]) {
+                                if (slot.level === details.level && slot.subject === details.subject && slot.stream === details.stream) {
+                                    isTier1 = true;
+                                    break;
+                                }
+                            }
+                            if (isTier1) break;
+                        }
+                        if (isTier1) break;
                     }
+
+                    if (isTier1) {
+                        candidates.G1.push({ teacher, rationale });
+                        return; // Found best match, continue to next teacher
+                    }
+
+                    // Check for Tier 2: Subject Specialist (Same Subject, any Level)
+                    if (teacher.subjects.includes(details.subject)) {
+                        isTier2 = true;
+                    }
+
+                    if (isTier2) {
+                        candidates.G2.push({ teacher, rationale });
+                        return; // Found second-best match, continue to next teacher
+                    }
+                    
+                    // If not Tier 1 or Tier 2, they are Tier 3
+                    candidates.G3.push({ teacher, rationale });
                 });
                 
                 const sortFn = (a, b) => (a.rationale['Daily Load'] - b.rationale['Daily Load']) || (a.rationale['Weekly Relief Load'] - b.rationale['Weekly Relief Load']);
@@ -1761,13 +1787,9 @@
                     }
 
                     if (modalMode === 'edit' && taskToEdit) {
-                        // When editing, remove the original task first.
-                        // The new set of tasks created from the modal selection will replace it.
-                        // This correctly handles additions, removals, and modifications to the relief periods.
                         reliefTasksByDate[dateKey] = reliefTasksByDate[dateKey].filter(t => t.id !== taskToEdit.id);
                         reliefTasksByDate[dateKey].push(...newTasks);
                     } else {
-                        // For a new request, just add the new tasks.
                         reliefTasksByDate[dateKey].push(...newTasks);
                     }
     
@@ -1820,29 +1842,31 @@
 
             function parseClassDetails(detailsString) {
                 if (!detailsString || detailsString.trim() === '') return null;
-                detailsString = detailsString.trim().replace(/^"|"$/g, '');
+                let workingString = detailsString.trim().replace(/^"|"$/g, '');
 
-                if (detailsString.toLowerCase() === 'assy') return { subject: 'Assembly', level: '', stream: '' };
-                if (detailsString.toLowerCase() === 'pd/dept/staffm') return { subject: 'Meeting', level: '', stream: '' };
+                if (workingString.toLowerCase() === 'assy') return { subject: 'Assembly', level: '', stream: '' };
+                if (workingString.toLowerCase() === 'pd/dept/staffm') return { subject: 'Meeting', level: '', stream: '' };
 
                 let level = '', subject = '', stream = '';
+                
+                // 1. Extract stream, e.g., (G3) or G3
+                const streamMatch = workingString.match(/\s?\(?([A-Z]\d+)\)?$/i);
+                if (streamMatch) {
+                    stream = streamMatch[1].toUpperCase();
+                    workingString = workingString.substring(0, streamMatch.index).trim();
+                }
 
-                // Try to extract level, e.g., "3 Sci(Chemistry) G3" -> "3"
-                const levelMatch = detailsString.match(/^(\d+)\s/);
+                // 2. Extract level, e.g., 2 CCE or 2 Science
+                const levelMatch = workingString.match(/^(\d+)\s/);
                 if (levelMatch) {
                     level = `Sec ${levelMatch[1]}`;
-                    detailsString = detailsString.substring(levelMatch[0].length);
+                    subject = workingString.substring(levelMatch[0].length).trim();
+                } else {
+                    subject = workingString;
                 }
 
-                // Try to extract stream, e.g., "Social Studies (G3)" -> "G3"
-                const streamMatch = detailsString.match(/\s(\w\d+)$/);
-                 if (streamMatch) {
-                    stream = streamMatch[1];
-                    detailsString = detailsString.substring(0, streamMatch.index);
-                }
-
-                // The rest is the subject
-                subject = detailsString.replace(/\(([^)]+)\)/, '$1').trim();
+                // 3. Format subject correctly, e.g., Sci(Chemistry) -> Sci (Chemistry)
+                 subject = subject.replace(/([a-z])\(([A-Z])/g, '$1 ($2');
 
                 return { level, subject, stream };
             }

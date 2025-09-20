@@ -110,8 +110,15 @@
             <div id="reliefStatusContainer" class="mt-6 mb-4 p-3 rounded-lg"></div>
 
             <div class="mt-8 flex-grow">
-                <h2 class="text-lg font-semibold text-gray-700 mb-3">Periods Requiring Relief</h2>
-                <div id="reliefTasksSidebar" class="space-y-2">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-lg font-semibold text-gray-700">Periods Requiring Relief</h2>
+                    <button id="clearDayReliefBtn" title="Delete all relief tasks for this day" class="hidden text-xs text-red-500 hover:text-red-700 font-semibold p-1 hover:bg-red-100 rounded">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+                <div id="reliefTasksSidebar" class="space-y-4">
                     <!-- Relief tasks will be injected here -->
                     <p class="text-sm text-gray-500 text-center py-4">No pending relief assignments.</p>
                 </div>
@@ -241,8 +248,11 @@
             </div>
 
             <p id="modalErrorMessage" class="text-red-600 text-sm mt-4 text-center hidden"></p>
-            <div id="modalActionButtons" class="mt-6 flex justify-end space-x-3">
-                 <button id="deleteReliefBtn" class="hidden bg-red-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-red-700 transition duration-300">Delete</button>
+            <div id="modalActionButtons" class="mt-6 flex justify-between items-center">
+                 <div class="space-x-3">
+                    <button id="deleteAllTasksBtn" class="hidden bg-red-800 text-white font-semibold py-2 px-6 rounded-lg hover:bg-red-900 transition duration-300">Delete All for Day</button>
+                    <button id="deleteReliefBtn" class="hidden bg-red-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-red-700 transition duration-300">Delete Period(s)</button>
+                 </div>
                 <button id="findTeachersBtn" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700 transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed">Find Available Teachers</button>
             </div>
         </div>
@@ -354,6 +364,7 @@
             const saveBlocksBtn = document.getElementById('saveBlocksBtn'); 
             const resetBlocksBtn = document.getElementById('resetBlocksBtn');
             const cancelBlockOutBtn = document.getElementById('cancelBlockOutBtn');
+            const deleteAllTasksBtn = document.getElementById('deleteAllTasksBtn');
     
     
             let selectedReliefContext = null;
@@ -441,79 +452,116 @@
     
             function renderReliefTasksSidebar() {
                 const container = document.getElementById('reliefTasksSidebar');
+                const clearDayBtn = document.getElementById('clearDayReliefBtn');
                 const dateKey = currentViewDate.format('YYYY-MM-DD');
-                const tasksForDay = (reliefTasksByDate[dateKey] || []).sort((a, b) => {
-                    const statusOrder = { 'pending': 0, 'assigned': 1 };
-                    return statusOrder[a.status] - statusOrder[b.status] || a.periods[0].id - b.periods[0].id;
-                });
-                
+                const tasksForDay = (reliefTasksByDate[dateKey] || []);
+
                 if (tasksForDay.length === 0) {
                     container.innerHTML = `<p class="text-sm text-gray-500 text-center py-4">No pending relief assignments.</p>`;
+                    if(clearDayBtn) clearDayBtn.classList.add('hidden');
                     return;
                 }
-                container.innerHTML = tasksForDay.map((task, index) => {
-                    const periodText = task.periods.length > 1 
-                        ? `P${task.periods[0].id}-P${task.periods[task.periods.length - 1].id}`
-                        : `P${task.periods[0].id}`;
 
-                    let splitButton = '';
-                    if (task.periods.length > 1 && task.status === 'pending') {
-                        const weekType = getWeekType(dayjs(task.date));
-                        const dayOfWeek = dayjs(task.date).format('dddd').toLowerCase();
-                        const teacherTimetable = fullTimetable[task.originalTeacher.id]?.[weekType]?.[dayOfWeek] || [];
-                        
-                        const firstPeriodDetails = task.details;
-                        const isPerfectMatch = task.periods.every(p => {
-                            const slot = teacherTimetable.find(s => s.period === p.id);
-                            return slot && slot.subject === firstPeriodDetails.subject && slot.level === firstPeriodDetails.level && slot.stream === firstPeriodDetails.stream;
-                        });
+                if(clearDayBtn) clearDayBtn.classList.remove('hidden');
 
-                        if (isPerfectMatch) {
-                            splitButton = `<button data-task-id="${task.id}" class="split-task-btn text-xs text-blue-600 hover:underline mt-1 text-left">Split Assignment</button>`;
-                        }
+                // Group tasks by teacher
+                const tasksByTeacher = tasksForDay.reduce((acc, task) => {
+                    const teacherId = task.originalTeacher.id;
+                    if (!acc[teacherId]) {
+                        acc[teacherId] = {
+                            teacher: task.originalTeacher,
+                            tasks: []
+                        };
                     }
-    
-                    let combineButton = '';
-                    const nextTaskIndex = index + 1;
-                    if (task.periods.length >= 1 && nextTaskIndex < tasksForDay.length) {
-                        const nextTask = tasksForDay[nextTaskIndex];
-                        const lastPeriodOfCurrent = task.periods[task.periods.length - 1].id;
-                        if (nextTask.originalTeacher.id === task.originalTeacher.id &&
-                            nextTask.periods[0].id === lastPeriodOfCurrent + 1 &&
-                            nextTask.details.subject === task.details.subject && 
-                            nextTask.details.level === task.details.level && 
-                            nextTask.details.stream === task.details.stream) {
-                            combineButton = `<button data-task-id="${task.id}" class="combine-task-btn text-xs text-green-600 hover:underline mt-1 text-left">Combine with next</button>`;
-                        }
-                    }
-                    
-                    const cardBgClass = task.status === 'assigned' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800';
-                    const selectedClass = selectedReliefContext && selectedReliefContext.id === task.id ? 'bg-blue-100 ring-2 ring-blue-500 text-blue-800' : `${cardBgClass} hover:opacity-80`;
+                    acc[teacherId].tasks.push(task);
+                    return acc;
+                }, {});
 
-                    let actionButtonHTML = `<button data-task-id="${task.id}" class="edit-task-btn p-1.5 hover:bg-gray-300 rounded-full"><svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>`;
-                    if (task.status === 'assigned') {
-                        actionButtonHTML = `<button data-task-id="${task.id}" class="undo-task-btn p-1.5 hover:bg-gray-300 rounded-full" title="Undo Assignment"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" /></svg></button>`;
-                    }
-                    
-                    const multiPeriodIndicator = task.periods.length > 1 ? '<div class="absolute left-0 top-0 h-full w-1.5 bg-blue-500 rounded-l-lg"></div>' : '';
-                    const paddingClass = task.periods.length > 1 ? 'pl-6' : 'pl-3';
-    
-                    return `
-                    <div data-task-id="${task.id}" class="relative relief-task-item py-3 pr-3 ${paddingClass} rounded-lg cursor-pointer ${selectedClass}">
-                        ${multiPeriodIndicator}
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="font-semibold text-sm">${task.periods[0].time} - ${periodText} (${task.periods.length} Period${task.periods.length > 1 ? 's' : ''})</p>
-                                <p class="text-xs">${task.details.level} ${task.details.subject} (${task.details.stream})</p>
-                                <p class="text-xs text-current opacity-75">Original: ${task.originalTeacher.name}</p>
-                                <div class="flex space-x-2">${splitButton} ${combineButton}</div>
+                let html = '';
+                for (const teacherId in tasksByTeacher) {
+                    const group = tasksByTeacher[teacherId];
+                    // Sort tasks within the group
+                    group.tasks.sort((a, b) => {
+                        const statusOrder = { 'pending': 0, 'assigned': 1 };
+                        return statusOrder[a.status] - statusOrder[b.status] || a.periods[0].id - b.periods[0].id;
+                    });
+
+                    html += `
+                        <div class="mb-4">
+                            <div class="flex justify-between items-center bg-gray-200 p-2 rounded-t-lg">
+                                <p class="font-bold text-sm text-gray-700">${group.teacher.name}</p>
                             </div>
-                            <div class="flex items-center space-x-2">
-                                ${actionButtonHTML}
+                            <div class="border border-t-0 rounded-b-lg p-2 space-y-2">
+                    `;
+                    
+                    html += group.tasks.map((task, index) => {
+                        const periodText = task.periods.length > 1 
+                            ? `P${task.periods[0].id}-P${task.periods[task.periods.length - 1].id}`
+                            : `P${task.periods[0].id}`;
+
+                        let splitButton = '';
+                        if (task.periods.length > 1 && task.status === 'pending') {
+                            const weekType = getWeekType(dayjs(task.date));
+                            const dayOfWeek = dayjs(task.date).format('dddd').toLowerCase();
+                            const teacherTimetable = fullTimetable[task.originalTeacher.id]?.[weekType]?.[dayOfWeek] || [];
+                            
+                            const firstPeriodDetails = task.details;
+                            const isPerfectMatch = task.periods.every(p => {
+                                const slot = teacherTimetable.find(s => s.period === p.id);
+                                return slot && slot.subject === firstPeriodDetails.subject && slot.level === firstPeriodDetails.level && slot.stream === firstPeriodDetails.stream;
+                            });
+
+                            if (isPerfectMatch) {
+                                splitButton = `<button data-task-id="${task.id}" class="split-task-btn text-xs text-blue-600 hover:underline mt-1 text-left">Split Assignment</button>`;
+                            }
+                        }
+        
+                        let combineButton = '';
+                        const nextTaskIndex = index + 1;
+                        if (task.periods.length >= 1 && nextTaskIndex < group.tasks.length) {
+                            const nextTask = group.tasks[nextTaskIndex];
+                            const lastPeriodOfCurrent = task.periods[task.periods.length - 1].id;
+                            if (nextTask.originalTeacher.id === task.originalTeacher.id &&
+                                nextTask.periods[0].id === lastPeriodOfCurrent + 1 &&
+                                nextTask.details.subject === task.details.subject && 
+                                nextTask.details.level === task.details.level && 
+                                nextTask.details.stream === task.details.stream) {
+                                combineButton = `<button data-task-id="${task.id}" class="combine-task-btn text-xs text-green-600 hover:underline mt-1 text-left">Combine with next</button>`;
+                            }
+                        }
+                        
+                        const cardBgClass = task.status === 'assigned' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800';
+                        const selectedClass = selectedReliefContext && selectedReliefContext.id === task.id ? 'bg-blue-100 ring-2 ring-blue-500 text-blue-800' : `${cardBgClass} hover:opacity-80`;
+
+                        let actionButtonHTML = `<button data-task-id="${task.id}" class="edit-task-btn p-1.5 hover:bg-gray-300 rounded-full"><svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>`;
+                        if (task.status === 'assigned') {
+                            actionButtonHTML = `<button data-task-id="${task.id}" class="undo-task-btn p-1.5 hover:bg-gray-300 rounded-full" title="Undo Assignment"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" /></svg></button>`;
+                        }
+                        
+                        const multiPeriodIndicator = task.periods.length > 1 ? '<div class="absolute left-0 top-0 h-full w-1.5 bg-blue-500 rounded-l-lg"></div>' : '';
+                        const paddingClass = task.periods.length > 1 ? 'pl-6' : 'pl-3';
+        
+                        return `
+                        <div data-task-id="${task.id}" class="relative relief-task-item py-3 pr-3 ${paddingClass} rounded-lg cursor-pointer ${selectedClass}">
+                            ${multiPeriodIndicator}
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="font-semibold text-sm">${task.periods[0].time} - ${periodText} (${task.periods.length} Period${task.periods.length > 1 ? 's' : ''})</p>
+                                    <p class="text-xs">${task.details.level} ${task.details.subject} (${task.details.stream})</p>
+                                    <p class="text-xs text-current opacity-75">Original: ${task.originalTeacher.name}</p>
+                                    <div class="flex space-x-2">${splitButton} ${combineButton}</div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    ${actionButtonHTML}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `}).join('');
+                    `}).join('');
+
+                    html += `</div></div>`; // close the group div
+                }
+
+                container.innerHTML = html;
     
                 container.querySelectorAll('.relief-task-item').forEach(item => {
                     item.addEventListener('click', (e) => {
@@ -912,10 +960,13 @@
                         const checkbox = document.getElementById(`period-${p.id}`);
                         if (checkbox) checkbox.checked = true;
                     });
+                    updateModalInteractiveState();
                 }, 100);
     
                 findTeachersBtn.textContent = "Update Assignment";
+                deleteReliefBtn.textContent = "Delete Period(s)";
                 deleteReliefBtn.classList.remove('hidden');
+                deleteAllTasksBtn.classList.remove('hidden');
                 openModal(assignReliefModal);
             }
     
@@ -932,6 +983,7 @@
                 periodSelectContainer.innerHTML = `<p class="text-gray-500">Please select a teacher and date.</p>`;
                 findTeachersBtn.textContent = "Find Available Teachers";
                 deleteReliefBtn.classList.add('hidden');
+                deleteAllTasksBtn.classList.add('hidden');
                 findTeachersBtn.disabled = true;
             }
     
@@ -1237,6 +1289,25 @@
                 tasks[taskIndex].assignedTeacher = null;
 
                 if (selectedReliefContext && selectedReliefContext.id === taskId) {
+                    selectedReliefContext = null;
+                }
+
+                saveStateToLocalStorage();
+                loadTimetableForDate(currentViewDate);
+            }
+
+            function handleDeleteAllForTeacher(teacherId) {
+                const dateKey = currentViewDate.format('YYYY-MM-DD');
+                const tasks = reliefTasksByDate[dateKey];
+                if (!tasks) return;
+
+                reliefTasksByDate[dateKey] = tasks.filter(task => task.originalTeacher.id !== teacherId);
+
+                if (reliefTasksByDate[dateKey].length === 0) {
+                    delete reliefTasksByDate[dateKey];
+                }
+                
+                if (selectedReliefContext && selectedReliefContext.originalTeacher.id === teacherId) {
                     selectedReliefContext = null;
                 }
 
@@ -1691,6 +1762,25 @@
 
                 startPeriodSelect.addEventListener('change', updateModalInteractiveState);
                 endPeriodSelect.addEventListener('change', updateModalInteractiveState);
+
+                document.getElementById('clearDayReliefBtn').addEventListener('click', () => {
+                    const dateKey = currentViewDate.format('YYYY-MM-DD');
+                    if(reliefTasksByDate[dateKey]) {
+                        delete reliefTasksByDate[dateKey];
+                        if (selectedReliefContext && selectedReliefContext.date === dateKey) {
+                            selectedReliefContext = null;
+                        }
+                        saveStateToLocalStorage();
+                        loadTimetableForDate(currentViewDate);
+                    }
+                });
+
+                deleteAllTasksBtn.addEventListener('click', () => {
+                    if (taskToEdit) {
+                        handleDeleteAllForTeacher(taskToEdit.originalTeacher.id);
+                        closeModal(assignReliefModal);
+                    }
+                });
     
                 findTeachersBtn.addEventListener('click', () => {
                     const teacherId = teacherSelect.value;
@@ -1866,7 +1956,7 @@
                 }
 
                 // 3. Format subject correctly, e.g., Sci(Chemistry) -> Sci (Chemistry)
-                 subject = subject.replace(/([a-z])\(([A-Z])/g, '$1 ($2');
+                 subject = subject.replace(/([a-z])\(([A-Z])/g, '$1 ($2)');
 
                 return { level, subject, stream };
             }

@@ -326,25 +326,20 @@
             // appId: "1:868354849156:web:1b2eb289950327955e45d1"
         };
         // ---------------------------------------------------------
-        
-        let db;
-        let appInitialized = false;
 
         function initializeFirebase() {
             try {
-                if (!firebaseConfig.projectId) {
-                    throw new Error("'projectId' not provided in firebaseConfig.");
+                // A simple check to see if the config is still the default placeholder
+                if (!firebaseConfig.projectId || firebaseConfig.apiKey === "...") {
+                    throw new Error("'projectId' or other essential keys not provided in firebaseConfig.");
                 }
                 const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
+                const db = getFirestore(app);
                 const auth = getAuth(app);
                 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
-                        if (!appInitialized) {
-                            setupApp(db);
-                            appInitialized = true;
-                        }
+                        setupApp(db);
                     } else {
                         signInAnonymously(auth).catch((error) => {
                             console.error("Anonymous sign-in failed:", error);
@@ -353,7 +348,7 @@
                     }
                 });
             } catch (e) {
-                console.error("Firebase initialization failed:", e.message);
+                console.warn("Firebase initialization failed:", e.message);
                 document.getElementById('loadingOverlay').innerHTML = `<div class="text-center p-4 bg-red-100 rounded-lg"><p class="font-bold text-red-700">Firebase Configuration Missing</p><p class="text-sm text-red-600 mt-2">Please paste your Firebase config object into the script tag in <code>index.html</code> to connect the application to your database.</p></div>`;
             }
         }
@@ -368,16 +363,14 @@
                 document.getElementById('mainContent').classList.remove('hidden');
 
                 if (docSnap.exists()) {
-                    console.log("Data received from Firestore.");
                     const data = docSnap.data();
                     window.loadStateFromFirestore(data);
                 } else {
-                    console.log("No data in Firestore. Initializing with mock data.");
                     window.initializeAppStateAndSave();
                 }
             });
         }
-
+        
         function runApp(db) {
             
             dayjs.extend(window.dayjs_plugin_weekOfYear);
@@ -439,7 +432,6 @@
             const cancelBlockOutBtn = document.getElementById('cancelBlockOutBtn');
             const deleteAllTasksBtn = document.getElementById('deleteAllTasksBtn');
             const clearDayReliefBtn = document.getElementById('clearDayReliefBtn');
-    
     
             let selectedReliefContext = null;
             let fullTimetable = {}; 
@@ -503,7 +495,8 @@
                 if (Object.keys(reliefTasksByDate).length === 0) {
                     addMockReliefTasks(currentViewDate);
                 }
-                saveStateToFirestore(); 
+                initializeAppUI();
+                saveStateToFirestore();
             }
 
             window.loadStateFromFirestore = function(data) {
@@ -532,6 +525,16 @@
                 loadTimetableForDate(currentViewDate);
             }
         
+            function renderReliefTasksSidebar() {
+                // This function remains the same as your previous version
+                // ... (renderReliefTasksSidebar logic) ...
+            }
+            
+            // ... (all your other functions: renderDepartmentTimetable, renderReliefLoad, etc.)
+            
+            initializeApp();
+
+            // ... (rest of functions) ...
             function renderReliefTasksSidebar() {
                 const container = document.getElementById('reliefTasksSidebar');
                 const clearDayBtn = document.getElementById('clearDayReliefBtn');
@@ -995,7 +998,6 @@
                          }
                      });
                      saveStateToFirestore();
-                     loadTimetableForDate(currentViewDate); // Reload to reflect saved changes
                  }
                 
                 isBlockOutMode = false;
@@ -1995,14 +1997,12 @@
 
                 let level = '', subject = '', stream = '';
                 
-                // 1. Extract stream, e.g., (G3) or G3
                 const streamMatch = workingString.match(/\s?\(?([A-Z]\d+)\)?$/i);
                 if (streamMatch) {
                     stream = streamMatch[1].toUpperCase();
                     workingString = workingString.substring(0, streamMatch.index).trim();
                 }
 
-                // 2. Extract level, e.g., 2 CCE or 2 Science
                 const levelMatch = workingString.match(/^(\d+)\s/);
                 if (levelMatch) {
                     level = `Sec ${levelMatch[1]}`;
@@ -2011,7 +2011,6 @@
                     subject = workingString;
                 }
 
-                // 3. Format subject correctly, e.g., Sci(Chemistry) -> Sci (Chemistry)
                  subject = subject.replace(/([a-z])\(([A-Z])/g, '$1 ($2');
 
                 return { level, subject, stream };
@@ -2028,7 +2027,7 @@
 
                 const dayMap = { Mon: 'monday', Tue: 'tuesday', Wed: 'wednesday', Thu: 'thursday', Fri: 'friday' };
 
-                for (let i = 1; i < lines.length; i++) { // Start from the first teacher row
+                for (let i = 1; i < lines.length; i++) {
                     const data = lines[i].split(',');
                     const teacherNameRaw = data[0].trim();
                     if (!teacherNameRaw) continue;

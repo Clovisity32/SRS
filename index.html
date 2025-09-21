@@ -176,7 +176,14 @@
             </div>
 
             <!-- Tab Content -->
-            <div class="flex-1 p-6 overflow-y-auto">
+            <div id="loadingOverlay" class="flex-1 p-6 overflow-y-auto flex items-center justify-center">
+                <div class="text-center">
+                    <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <p class="mt-2 text-gray-500">Connecting to database...</p>
+                </div>
+            </div>
+
+            <div id="mainContent" class="flex-1 p-6 overflow-y-auto hidden">
                 <div id="timetable" class="tab-content">
                     <!-- Timetable will be rendered here -->
                 </div>
@@ -304,9 +311,75 @@
         </div>
     </div>
 
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        // --- PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE ---
+        const firebaseConfig = {
+            // apiKey: "AIzaSyB_CI1CbYU7cpXGg4RTFSIQsy2SCao3AqU",
+            // authDomain: "smart-relief-system.firebaseapp.com",
+            // projectId: "smart-relief-system",
+            // storageBucket: "smart-relief-system.firebasestorage.app",
+            // messagingSenderId: "868354849156",
+            // appId: "1:868354849156:web:1b2eb289950327955e45d1"
+        };
+        // ---------------------------------------------------------
+        
+        let db;
+        let appInitialized = false;
+
+        function initializeFirebase() {
+            try {
+                if (!firebaseConfig.projectId) {
+                    throw new Error("'projectId' not provided in firebaseConfig.");
+                }
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                const auth = getAuth(app);
+                
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        if (!appInitialized) {
+                            setupApp(db);
+                            appInitialized = true;
+                        }
+                    } else {
+                        signInAnonymously(auth).catch((error) => {
+                            console.error("Anonymous sign-in failed:", error);
+                            alert("Could not connect to the database. Please check your Firebase setup and security rules.");
+                        });
+                    }
+                });
+            } catch (e) {
+                console.error("Firebase initialization failed:", e.message);
+                document.getElementById('loadingOverlay').innerHTML = `<div class="text-center p-4 bg-red-100 rounded-lg"><p class="font-bold text-red-700">Firebase Configuration Missing</p><p class="text-sm text-red-600 mt-2">Please paste your Firebase config object into the script tag in <code>index.html</code> to connect the application to your database.</p></div>`;
+            }
+        }
+
+        function setupApp(db) {
+            const dataDocRef = doc(db, "app_data", "main");
+            
+            runApp(db); 
+
+            onSnapshot(dataDocRef, (docSnap) => {
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+
+                if (docSnap.exists()) {
+                    console.log("Data received from Firestore.");
+                    const data = docSnap.data();
+                    window.loadStateFromFirestore(data);
+                } else {
+                    console.log("No data in Firestore. Initializing with mock data.");
+                    window.initializeAppStateAndSave();
+                }
+            });
+        }
+
+        function runApp(db) {
+            
             dayjs.extend(window.dayjs_plugin_weekOfYear);
             dayjs.extend(window.dayjs_plugin_isSameOrAfter);
             dayjs.extend(window.dayjs_plugin_isBetween);
@@ -323,7 +396,7 @@
             ];
     
             let masterTeachers = [];
-            let teachers = []; // This will hold the daily view of masterTeachers
+            let teachers = []; 
             let reliefTasksByDate = {};
     
             const tabButtons = document.querySelectorAll('.tab-button');
@@ -365,6 +438,7 @@
             const resetBlocksBtn = document.getElementById('resetBlocksBtn');
             const cancelBlockOutBtn = document.getElementById('cancelBlockOutBtn');
             const deleteAllTasksBtn = document.getElementById('deleteAllTasksBtn');
+            const clearDayReliefBtn = document.getElementById('clearDayReliefBtn');
     
     
             let selectedReliefContext = null;
@@ -372,11 +446,11 @@
             let calendarDisplayMonth = dayjs();
             let selectedReliefDateInModal = dayjs();
             let currentViewDate = dayjs();
-             // If it's a weekend on first load, default to the next Monday for a better demo experience
-            const dayOfWeekInit = currentViewDate.day(); // 0=Sun, 6=Sat
-            if (dayOfWeekInit === 6) { // Saturday
+
+            const dayOfWeekInit = currentViewDate.day(); 
+            if (dayOfWeekInit === 6) { 
                 currentViewDate = currentViewDate.add(2, 'day');
-            } else if (dayOfWeekInit === 0) { // Sunday
+            } else if (dayOfWeekInit === 0) { 
                 currentViewDate = currentViewDate.add(1, 'day');
             }
             let modalMode = 'new';
@@ -404,52 +478,60 @@
                 modalBackdrop.style.display = 'none';
                 modal.style.display = 'none';
             }
-            
-            // ===== Local Storage Functions =====
-            function saveStateToLocalStorage() {
+
+            async function saveStateToFirestore() {
+                const stateToSave = {
+                    fullTimetable,
+                    reliefTasksByDate,
+                    termStartDates: { 
+                        term1: termStartDates.term1.format(),
+                        term2: termStartDates.term2.format(),
+                        term3: termStartDates.term3.format(),
+                        term4: termStartDates.term4.format(),
+                    },
+                    masterTeachers
+                };
                 try {
-                    const state = {
-                        fullTimetable,
-                        reliefTasksByDate,
-                        termStartDates: { 
-                            term1: termStartDates.term1.format(),
-                            term2: termStartDates.term2.format(),
-                            term3: termStartDates.term3.format(),
-                            term4: termStartDates.term4.format(),
-                        },
-                        masterTeachers
+                    await setDoc(doc(db, "app_data", "main"), stateToSave);
+                } catch (e) {
+                    console.error("Error saving state to Firestore: ", e);
+                }
+            }
+
+            window.initializeAppStateAndSave = function() {
+                initializeMockFullTimetable();
+                if (Object.keys(reliefTasksByDate).length === 0) {
+                    addMockReliefTasks(currentViewDate);
+                }
+                saveStateToFirestore(); 
+            }
+
+            window.loadStateFromFirestore = function(data) {
+                fullTimetable = data.fullTimetable || {};
+                reliefTasksByDate = data.reliefTasksByDate || {};
+                masterTeachers = data.masterTeachers || [];
+                if (data.termStartDates) {
+                    termStartDates = { 
+                        term1: dayjs(data.termStartDates.term1),
+                        term2: dayjs(data.termStartDates.term2),
+                        term3: dayjs(data.termStartDates.term3),
+                        term4: dayjs(data.termStartDates.term4),
                     };
-                    localStorage.setItem('reliefAllocatorState', JSON.stringify(state));
-                } catch (e) {
-                    console.error("Failed to save state to Local Storage", e);
                 }
+                initializeAppUI();
             }
-    
-            function loadStateFromLocalStorage() {
-                try {
-                    const savedState = localStorage.getItem('reliefAllocatorState');
-                    if (savedState) {
-                        const state = JSON.parse(savedState);
-                        fullTimetable = state.fullTimetable || {};
-                        reliefTasksByDate = state.reliefTasksByDate || {};
-                        masterTeachers = state.masterTeachers || [];
-                        if (state.termStartDates) {
-                            termStartDates = { 
-                                term1: dayjs(state.termStartDates.term1),
-                                term2: dayjs(state.termStartDates.term2),
-                                term3: dayjs(state.termStartDates.term3),
-                                term4: dayjs(state.termStartDates.term4),
-                            };
-                        }
-                        return true; 
-                    }
-                } catch (e) {
-                    console.error("Failed to load state from Local Storage", e);
+
+            function initializeAppUI() {
+                if (masterTeachers.length > 0) {
+                    teacherSelect.innerHTML = '<option value="">Select a teacher...</option>' + masterTeachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
                 }
-                return false; 
+                term1Input.value = termStartDates.term1.format('YYYY-MM-DD');
+                term2Input.value = termStartDates.term2.format('YYYY-MM-DD');
+                term3Input.value = termStartDates.term3.format('YYYY-MM-DD');
+                term4Input.value = termStartDates.term4.format('YYYY-MM-DD');
+                loadTimetableForDate(currentViewDate);
             }
-    
-    
+        
             function renderReliefTasksSidebar() {
                 const container = document.getElementById('reliefTasksSidebar');
                 const clearDayBtn = document.getElementById('clearDayReliefBtn');
@@ -912,7 +994,7 @@
                                  .map(s => s.period);
                          }
                      });
-                     saveStateToLocalStorage();
+                     saveStateToFirestore();
                      loadTimetableForDate(currentViewDate); // Reload to reflect saved changes
                  }
                 
@@ -1222,8 +1304,7 @@
                 reliefTasksByDate[dateKey][taskIndex].assignedTeacher = { id: assignedTeacher.id, name: assignedTeacher.name };
                 
                 selectedReliefContext = null; // Clear context
-                saveStateToLocalStorage();
-                loadTimetableForDate(currentViewDate);
+                saveStateToFirestore();
             }
     
             function handleDeleteRelief() {
@@ -1232,8 +1313,8 @@
                  const tasks = reliefTasksByDate[dateKey];
                  if (tasks) {
                      reliefTasksByDate[dateKey] = tasks.filter(t => t.id !== taskToEdit.id);
-                     saveStateToLocalStorage();
-                     loadTimetableForDate(dayjs(taskToEdit.date));
+                     if (reliefTasksByDate[dateKey].length === 0) delete reliefTasksByDate[dateKey];
+                     saveStateToFirestore();
                  }
                  closeModal(assignReliefModal);
             }
@@ -1254,8 +1335,7 @@
     
                 // Replace the old task with the new split tasks
                 reliefTasksByDate[dateKey].splice(taskIndex, 1, ...newTasks);
-                saveStateToLocalStorage();
-                renderUI();
+                saveStateToFirestore();
             }
     
             function handleCombineAssignments(taskId) {
@@ -1273,8 +1353,7 @@
                  // Remove the next task
                  reliefTasksByDate[dateKey] = tasks.filter(t => t.id !== nextTask.id);
     
-                 saveStateToLocalStorage();
-                 renderUI();
+                 saveStateToFirestore();
             }
 
             function handleUndoAssignment(taskId) {
@@ -1286,18 +1365,17 @@
                 if (taskIndex === -1) return;
 
                 tasks[taskIndex].status = 'pending';
-                tasks[taskIndex].assignedTeacher = null;
+                delete tasks[taskIndex].assignedTeacher;
 
                 if (selectedReliefContext && selectedReliefContext.id === taskId) {
                     selectedReliefContext = null;
                 }
 
-                saveStateToLocalStorage();
-                loadTimetableForDate(currentViewDate);
+                saveStateToFirestore();
             }
 
             function handleDeleteAllForTeacher(teacherId) {
-                const dateKey = currentViewDate.format('YYYY-MM-DD');
+                const dateKey = dayjs(selectedReliefDateInModal).format('YYYY-MM-DD');
                 const tasks = reliefTasksByDate[dateKey];
                 if (!tasks) return;
 
@@ -1311,8 +1389,7 @@
                     selectedReliefContext = null;
                 }
 
-                saveStateToLocalStorage();
-                loadTimetableForDate(currentViewDate);
+                saveStateToFirestore();
             }
     
     
@@ -1533,7 +1610,7 @@
                 ];
 
                 fullTimetable = {
-                    't1': { // John Doe
+                    't1': { 
                         'Odd': {
                             'monday': [
                                 { period: 1, level: 'Sec 3', subject: 'Math', stream: 'Express' },
@@ -1556,7 +1633,7 @@
                             ]
                         }
                     },
-                    't3': { // Peter Jones
+                    't3': { 
                         'Odd': {
                             'monday': [
                                 { period: 1, level: 'Sec 3', subject: 'Chemistry', stream: 'Express' },
@@ -1571,8 +1648,6 @@
                         }
                     }
                 };
-                
-                teacherSelect.innerHTML = '<option value="">Select a teacher...</option>' + masterTeachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
             }
 
             function addMockReliefTasks(date) {
@@ -1664,9 +1739,7 @@
                      termStartDates.term2 = dayjs(term2Input.value);
                      termStartDates.term3 = dayjs(term3Input.value);
                      termStartDates.term4 = dayjs(term4Input.value);
-                     saveStateToLocalStorage();
-                     loadTimetableForDate(currentViewDate); // Reload to apply new term dates
-                     closeModal(settingsModal);
+                     saveStateToFirestore();
                 });
                 downloadTemplateLink.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -1684,9 +1757,7 @@
 
                     const exampleRow = new Array(csvHeaders.length).fill('');
                     exampleRow[0] = '"Ms Tan (Math)"';
-                    // Example for Odd Mon P1 (index 1)
                     exampleRow[1] = '"1 Math 1E"';
-                    // Example for Odd Tue P5 (index = 1 for teacher + 16 for Mon + 4 for P5)
                     exampleRow[1 + 16 + 4] = '"2 Math 2A"';
 
                     const csvContent = [
@@ -1763,15 +1834,14 @@
                 startPeriodSelect.addEventListener('change', updateModalInteractiveState);
                 endPeriodSelect.addEventListener('change', updateModalInteractiveState);
 
-                document.getElementById('clearDayReliefBtn').addEventListener('click', () => {
+                clearDayReliefBtn.addEventListener('click', () => {
                     const dateKey = currentViewDate.format('YYYY-MM-DD');
                     if(reliefTasksByDate[dateKey]) {
                         delete reliefTasksByDate[dateKey];
                         if (selectedReliefContext && selectedReliefContext.date === dateKey) {
                             selectedReliefContext = null;
                         }
-                        saveStateToLocalStorage();
-                        loadTimetableForDate(currentViewDate);
+                        saveStateToFirestore();
                     }
                 });
 
@@ -1883,7 +1953,7 @@
                         reliefTasksByDate[dateKey].push(...newTasks);
                     }
     
-                    saveStateToLocalStorage();
+                    saveStateToFirestore();
                     currentViewDate = selectedReliefDateInModal;
                     loadTimetableForDate(currentViewDate);
                     closeModal(assignReliefModal);
@@ -1913,21 +1983,7 @@
                     });
                 });
     
-                const dataLoaded = loadStateFromLocalStorage();
-                if (!dataLoaded || Object.keys(fullTimetable).length === 0) {
-                    initializeMockFullTimetable();
-                    if (Object.keys(reliefTasksByDate).length === 0) {
-                        addMockReliefTasks(currentViewDate);
-                    }
-                }
-                
-                term1Input.value = termStartDates.term1.format('YYYY-MM-DD');
-                term2Input.value = termStartDates.term2.format('YYYY-MM-DD');
-                term3Input.value = termStartDates.term3.format('YYYY-MM-DD');
-                term4Input.value = termStartDates.term4.format('YYYY-MM-DD');
-    
                 populatePeriodDropdowns();
-                loadTimetableForDate(currentViewDate);
             }
 
             function parseClassDetails(detailsString) {
@@ -1956,7 +2012,7 @@
                 }
 
                 // 3. Format subject correctly, e.g., Sci(Chemistry) -> Sci (Chemistry)
-                 subject = subject.replace(/([a-z])\(([A-Z])/g, '$1 ($2)');
+                 subject = subject.replace(/([a-z])\(([A-Z])/g, '$1 ($2');
 
                 return { level, subject, stream };
             }
@@ -2024,17 +2080,14 @@
                 reliefTasksByDate = {}; 
                 selectedReliefContext = null;
 
-                saveStateToLocalStorage();
-                
-                teacherSelect.innerHTML = '<option value="">Select a teacher...</option>' + masterTeachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-                
-                loadTimetableForDate(currentViewDate);
+                saveStateToFirestore();
             }
-    
-            initializeApp();
-        });
-    </script>
+        }
+        
+        initializeFirebase();
 
+    </script>
+    
 </body>
 </html>
 

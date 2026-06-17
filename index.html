@@ -3214,6 +3214,22 @@
             });
             obs.observe(findTeachersBtn, { attributes: true });
           }
+
+          // Keep bottom nav pinned to the visual viewport when user pinch-zooms.
+          // On mobile Chrome/Safari, position:fixed tracks the layout viewport,
+          // so the nav disappears off-screen when the user zooms in.
+          if (window.visualViewport) {
+            const pinBottomNav = () => {
+              const nav = document.getElementById("mobileBottomNav");
+              if (!nav || window.innerWidth >= 768) return;
+              const vv = window.visualViewport;
+              const offsetFromBottom =
+                window.innerHeight - (vv.offsetTop + vv.height);
+              nav.style.transform = `translateY(${-offsetFromBottom}px)`;
+            };
+            window.visualViewport.addEventListener("resize", pinBottomNav);
+            window.visualViewport.addEventListener("scroll", pinBottomNav);
+          }
         }
 
         function parseClassDetails(detailsString) {

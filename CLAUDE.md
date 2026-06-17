@@ -95,6 +95,17 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 - Per-button data is stored in `draftMessageMap` (a `Map` keyed by `task.id`). Do not put serialised JSON in HTML attributes — read from the Map in click handlers via `e.target.dataset.msgKey`.
 - Run `/security-audit` after every implementation session that adds or changes `innerHTML` interpolation — a single hardening pass is not enough. Known missed sites caught in follow-up: `task.details.level/subject/stream` in the sidebar task card (`renderReliefTasksSidebar`), `d.name` in the relief load table (`renderReliefLoad`), and `classText` + `assignedTeacher.name` in the daily summary (`renderDailySummary`).
 
+## Mobile Layout Notes
+
+- Any `flex-1` item that contains a wide scrollable table **must** have `min-w-0` — without it, `min-width: auto` lets the table's natural width expand the flex item and push sibling elements (e.g. the header) off-screen.
+- Do not use negative-margin edge-to-edge tricks (`-mx-3`) on table containers inside flex items — the negative margins expand the container past the flex cross-axis boundary. `overflow-x: scroll` alone is sufficient to enable horizontal table scroll.
+- Tailwind Play CDN injects styles **after** the `<style>` block — any custom CSS property can be silently overridden by a Tailwind utility class on the same element (e.g. `overflow-x-auto` overriding `overflow-x: scroll` in `.table-scroll`). Use Tailwind utilities directly rather than mixing custom CSS on the same element.
+
+## Testing (Playwright)
+
+- `isMobile: true` in Playwright inflates `getBoundingClientRect()` by the device scale factor (2–3×). For CSS-pixel measurements use `offsetWidth` / `getComputedStyle().width` instead.
+- Check element widths at two points: immediately after `domcontentloaded` (pre-data) and after Firebase resolves. Widths can differ significantly once tables render with real content, so a passing pre-load check doesn't guarantee a correct post-load layout.
+
 ## UI Conventions
 
 - Multi-step modals use `.step-badge` CSS class (blue circle `1`, `2`, `3`) defined in `<style>` around line 119. Apply it to any new modal with a sequential user flow.
@@ -102,12 +113,13 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 
 ## Changelog
 
-| Date    | What Changed                                                                                                                  |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| 2026-06 | Mobile UX: step badges in Assign Relief modal, flex-col-reverse button layout, tab scroll shadow, hint text on disabled CTA   |
-| 2026-06 | Message template customisation added to Settings modal; persisted to Firestore                                                |
-| 2026-06 | XSS hardening: `esc()` helper, Map-based data attributes, DOM API teacher dropdown, 8 innerHTML call sites wrapped            |
-| 2026-06 | SRI integrity hashes on DayJS ×4 and PDF.js CDN scripts; 15 MB upload size guard added                                        |
-| 2026-06 | Firestore security rules added (`firestore.rules` + `firebase.json`): auth gate, path allowlist, write shape validation       |
-| 2026-06 | CSP `<meta>` tag added to `index.html`; `unsafe-inline`/`unsafe-eval` documented as Tailwind Play CDN constraints             |
-| 2026-06 | XSS follow-up: 4 missed `esc()` sites fixed (sidebar task card, relief load table, daily summary classText + assignedTeacher) |
+| Date    | What Changed                                                                                                                                       |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06 | Mobile UX phase 2: `min-w-0` on `<main>`, removed `-mx-3` from table containers; all 3 tabs + Assign Relief modal verified at 390px via Playwright |
+| 2026-06 | Mobile UX: step badges in Assign Relief modal, flex-col-reverse button layout, tab scroll shadow, hint text on disabled CTA                        |
+| 2026-06 | Message template customisation added to Settings modal; persisted to Firestore                                                                     |
+| 2026-06 | XSS hardening: `esc()` helper, Map-based data attributes, DOM API teacher dropdown, 8 innerHTML call sites wrapped                                 |
+| 2026-06 | SRI integrity hashes on DayJS ×4 and PDF.js CDN scripts; 15 MB upload size guard added                                                             |
+| 2026-06 | Firestore security rules added (`firestore.rules` + `firebase.json`): auth gate, path allowlist, write shape validation                            |
+| 2026-06 | CSP `<meta>` tag added to `index.html`; `unsafe-inline`/`unsafe-eval` documented as Tailwind Play CDN constraints                                  |
+| 2026-06 | XSS follow-up: 4 missed `esc()` sites fixed (sidebar task card, relief load table, daily summary classText + assignedTeacher)                      |

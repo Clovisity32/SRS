@@ -93,6 +93,7 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 
 - All Firestore-sourced values injected into `innerHTML` **must** be wrapped with `esc()` — defined inside `runApp()` near `draftMessageMap`. Never interpolate `teacher.name`, `slot.subject`, `slot.level`, or `slot.stream` directly into template literals used with `innerHTML`.
 - Per-button data is stored in `draftMessageMap` (a `Map` keyed by `task.id`). Do not put serialised JSON in HTML attributes — read from the Map in click handlers via `e.target.dataset.msgKey`.
+- Run `/security-audit` after every implementation session that adds or changes `innerHTML` interpolation — a single hardening pass is not enough. Known missed sites caught in follow-up: `task.details.level/subject/stream` in the sidebar task card (`renderReliefTasksSidebar`), `d.name` in the relief load table (`renderReliefLoad`), and `classText` + `assignedTeacher.name` in the daily summary (`renderDailySummary`).
 
 ## UI Conventions
 
@@ -101,11 +102,12 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 
 ## Changelog
 
-| Date    | What Changed                                                                                                                |
-| ------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 2026-06 | Mobile UX: step badges in Assign Relief modal, flex-col-reverse button layout, tab scroll shadow, hint text on disabled CTA |
-| 2026-06 | Message template customisation added to Settings modal; persisted to Firestore                                              |
-| 2026-06 | XSS hardening: `esc()` helper, Map-based data attributes, DOM API teacher dropdown, 8 innerHTML call sites wrapped          |
-| 2026-06 | SRI integrity hashes on DayJS ×4 and PDF.js CDN scripts; 15 MB upload size guard added                                      |
-| 2026-06 | Firestore security rules added (`firestore.rules` + `firebase.json`): auth gate, path allowlist, write shape validation     |
-| 2026-06 | CSP `<meta>` tag added to `index.html`; `unsafe-inline`/`unsafe-eval` documented as Tailwind Play CDN constraints           |
+| Date    | What Changed                                                                                                                  |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06 | Mobile UX: step badges in Assign Relief modal, flex-col-reverse button layout, tab scroll shadow, hint text on disabled CTA   |
+| 2026-06 | Message template customisation added to Settings modal; persisted to Firestore                                                |
+| 2026-06 | XSS hardening: `esc()` helper, Map-based data attributes, DOM API teacher dropdown, 8 innerHTML call sites wrapped            |
+| 2026-06 | SRI integrity hashes on DayJS ×4 and PDF.js CDN scripts; 15 MB upload size guard added                                        |
+| 2026-06 | Firestore security rules added (`firestore.rules` + `firebase.json`): auth gate, path allowlist, write shape validation       |
+| 2026-06 | CSP `<meta>` tag added to `index.html`; `unsafe-inline`/`unsafe-eval` documented as Tailwind Play CDN constraints             |
+| 2026-06 | XSS follow-up: 4 missed `esc()` sites fixed (sidebar task card, relief load table, daily summary classText + assignedTeacher) |

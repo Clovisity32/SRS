@@ -171,6 +171,14 @@
       .sticky-corner {
         z-index: 30 !important;
       }
+      /* Force sticky teacher cells onto their own compositing layer so Chrome
+         renders them above adjacent scrolling period cells in table layout.
+         transform: translate(0) creates a stacking context (like z-index but
+         without the table-cell z-index bug in Chromium). */
+      .teacher-name-cell {
+        transform: translate(0);
+        box-shadow: 2px 0 4px -1px rgba(0, 0, 0, 0.08);
+      }
       /* Step badge in modal */
       .step-badge {
         display: inline-flex;
@@ -1499,7 +1507,7 @@
             );
             const headerHtml = PERIODS.map(
               (p) =>
-                `<th class="sticky top-0 bg-gray-50 z-10 p-1 md:p-2 border font-semibold text-xs md:text-sm whitespace-nowrap period-header-cell cursor-pointer hover:bg-gray-200 ${highlightedPeriods.has(p.id) ? "highlight-col" : ""}" data-period-id="${p.id}"><span class="hidden md:inline">${p.time}<br></span>P${p.id}</th>`,
+                `<th class="sticky top-0 bg-gray-50 z-10 py-3 px-2 md:p-2 border font-semibold text-xs md:text-sm whitespace-nowrap period-header-cell cursor-pointer hover:bg-gray-200 ${highlightedPeriods.has(p.id) ? "highlight-col" : ""}" data-period-id="${p.id}"><span class="hidden md:inline">${p.time}<br></span>P${p.id}</th>`,
             ).join("");
 
             const renderTeacherRow = (teacher) => {
@@ -1587,7 +1595,7 @@
               }).join("");
 
               return `<tr class="${rowClass}">
-                            <td class="sticky left-0 p-1 md:p-2 border font-semibold text-xs md:text-sm bg-gray-50 whitespace-nowrap teacher-name-cell cursor-pointer hover:bg-gray-200" data-teacher-id="${teacher.id}">
+                            <td class="sticky left-0 z-10 p-1 md:p-2 border font-semibold text-xs md:text-sm bg-gray-50 whitespace-nowrap teacher-name-cell cursor-pointer hover:bg-gray-200" data-teacher-id="${teacher.id}">
                                 <div>${esc(teacher.name)}</div>
                                 ${constraintsDisplay}
                                 ${assignButton}

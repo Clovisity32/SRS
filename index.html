@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <!-- Content Security Policy
          'unsafe-inline' required: inline <script type="module"> contains the entire app.
          'unsafe-eval' required: Tailwind Play CDN uses eval() for JIT CSS generation.
@@ -214,6 +217,30 @@
           overflow-y: auto;
         }
       }
+      /* Safe-area insets for iPhone home indicator */
+      @supports (padding-bottom: env(safe-area-inset-bottom)) {
+        @media (max-width: 767px) {
+          #mobileBottomNav {
+            padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+          }
+          #mainContent {
+            padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
+          }
+        }
+      }
+      /* Disable double-tap zoom on interactive elements */
+      button,
+      a,
+      input,
+      select,
+      textarea {
+        touch-action: manipulation;
+      }
+      /* Smooth momentum scroll on the horizontal table container */
+      .table-scroll {
+        -webkit-overflow-scrolling: touch;
+        overflow-x: scroll;
+      }
     </style>
   </head>
   <body class="bg-gray-100 text-gray-800">
@@ -310,10 +337,10 @@
       </aside>
 
       <!-- ===== Main Content Area ===== -->
-      <main class="flex-1 flex flex-col">
+      <main class="flex-1 flex flex-col min-w-0">
         <!-- Header -->
         <header
-          class="bg-white border-b border-gray-200 flex items-center justify-between p-4 shadow-sm"
+          class="bg-white border-b border-gray-200 flex items-center justify-between p-2 md:p-4 shadow-sm"
         >
           <div class="flex items-center">
             <h2 class="text-base md:text-xl font-semibold">
@@ -321,7 +348,7 @@
               <span class="md:hidden">Dashboard</span>
             </h2>
           </div>
-          <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-2 md:space-x-4">
             <div class="flex items-center bg-gray-100 rounded-lg p-1">
               <button id="prevDayBtn" class="p-2 rounded-md hover:bg-gray-200">
                 <svg
@@ -357,7 +384,7 @@
               </button>
               <button
                 id="todayBtn"
-                class="ml-2 px-3 py-1.5 text-sm font-semibold text-blue-600 bg-blue-100 rounded-md hover:bg-blue-200"
+                class="hidden md:inline-flex ml-2 px-3 py-1.5 text-sm font-semibold text-blue-600 bg-blue-100 rounded-md hover:bg-blue-200"
               >
                 Today
               </button>
@@ -380,7 +407,10 @@
                 />
               </svg>
             </button>
-            <button id="settingsBtn" class="p-2 rounded-full hover:bg-gray-200">
+            <button
+              id="settingsBtn"
+              class="hidden md:block p-2 rounded-full hover:bg-gray-200"
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-6 w-6 text-gray-600"
@@ -509,6 +539,7 @@
 
       <!-- Mobile Bottom Navigation -->
       <nav
+        id="mobileBottomNav"
         class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex items-center justify-around px-4 pt-2 pb-5 z-20 shadow-lg"
       >
         <button
@@ -1463,7 +1494,7 @@
             );
             const headerHtml = PERIODS.map(
               (p) =>
-                `<th class="sticky top-0 bg-gray-50 z-10 p-2 border font-semibold text-sm whitespace-nowrap period-header-cell cursor-pointer hover:bg-gray-200 ${highlightedPeriods.has(p.id) ? "highlight-col" : ""}" data-period-id="${p.id}">${p.time}<br>P${p.id}</th>`,
+                `<th class="sticky top-0 bg-gray-50 z-10 p-1 md:p-2 border font-semibold text-xs md:text-sm whitespace-nowrap period-header-cell cursor-pointer hover:bg-gray-200 ${highlightedPeriods.has(p.id) ? "highlight-col" : ""}" data-period-id="${p.id}"><span class="hidden md:inline">${p.time}<br></span>P${p.id}</th>`,
             ).join("");
 
             const renderTeacherRow = (teacher) => {
@@ -1551,7 +1582,7 @@
               }).join("");
 
               return `<tr class="${rowClass}">
-                            <td class="sticky left-0 p-2 border font-semibold bg-gray-50 whitespace-nowrap teacher-name-cell cursor-pointer hover:bg-gray-200" data-teacher-id="${teacher.id}">
+                            <td class="sticky left-0 p-1 md:p-2 border font-semibold text-xs md:text-sm bg-gray-50 whitespace-nowrap teacher-name-cell cursor-pointer hover:bg-gray-200" data-teacher-id="${teacher.id}">
                                 <div>${esc(teacher.name)}</div>
                                 ${constraintsDisplay}
                                 ${assignButton}
@@ -1598,9 +1629,9 @@
             }
 
             container.innerHTML = `
-                        <div class="overflow-x-auto">
-                            <table class="w-full border-collapse">
-                                <thead><tr><th class="sticky top-0 left-0 bg-gray-50 z-20 p-2 border">Teacher</th>${headerHtml}</tr></thead>
+                        <div class="table-scroll overflow-x-auto">
+                            <table class="border-collapse">
+                                <thead><tr><th class="sticky top-0 left-0 bg-gray-50 z-20 p-1 md:p-2 border text-xs md:text-sm whitespace-nowrap sticky-corner">Teacher</th>${headerHtml}</tr></thead>
                                 <tbody>${bodyHtml}</tbody>
                             </table>
                         </div>`;
@@ -1736,13 +1767,13 @@
             .map(
               (d) => `
                     <tr class="border-b">
-                        <td class="sticky left-0 bg-white p-3 font-medium">${esc(d.name)}</td>
-                        <td class="p-3 text-center">${d.weekly}</td>
-                        <td class="p-3 text-center">${d.term1}</td>
-                        <td class="p-3 text-center">${d.term2}</td>
-                        <td class="p-3 text-center">${d.term3}</td>
-                        <td class="p-3 text-center">${d.term4}</td>
-                        <td class="p-3 text-center font-semibold">${d.total}</td>
+                        <td class="sticky left-0 bg-white p-2 md:p-3 font-medium whitespace-nowrap">${esc(d.name)}</td>
+                        <td class="p-2 md:p-3 text-center">${d.weekly}</td>
+                        <td class="p-2 md:p-3 text-center">${d.term1}</td>
+                        <td class="p-2 md:p-3 text-center">${d.term2}</td>
+                        <td class="p-2 md:p-3 text-center">${d.term3}</td>
+                        <td class="p-2 md:p-3 text-center">${d.term4}</td>
+                        <td class="p-2 md:p-3 text-center font-semibold">${d.total}</td>
                     </tr>
                 `,
             )
@@ -1751,17 +1782,17 @@
           container.innerHTML = `
                     <h3 class="text-xl font-semibold mb-2">Teacher Relief Load Summary</h3>
                     <p class="text-sm text-gray-600 mb-4">Showing weekly load for ${startOfWeek.format("D MMM")} to ${endOfWeek.format("D MMM YYYY")}</p>
-                    <div class="overflow-x-auto bg-white rounded-lg shadow">
-                        <table class="w-full text-sm text-left">
+                    <div class="table-scroll overflow-x-auto bg-white rounded-lg shadow">
+                        <table class="text-sm text-left">
                             <thead class="sticky top-0 bg-gray-100 z-10">
                                 <tr>
-                                    <th class="sticky left-0 bg-gray-100 p-3">Teacher</th>
-                                    <th class="p-3 text-center">Current Week</th>
-                                    <th class="p-3 text-center">Term 1</th>
-                                    <th class="p-3 text-center">Term 2</th>
-                                    <th class="p-3 text-center">Term 3</th>
-                                    <th class="p-3 text-center">Term 4</th>
-                                    <th class="p-3 text-center">Total</th>
+                                    <th class="sticky left-0 bg-gray-100 p-2 md:p-3 whitespace-nowrap">Teacher</th>
+                                    <th class="p-2 md:p-3 text-center whitespace-nowrap">Current Week</th>
+                                    <th class="p-2 md:p-3 text-center whitespace-nowrap">Term 1</th>
+                                    <th class="p-2 md:p-3 text-center whitespace-nowrap">Term 2</th>
+                                    <th class="p-2 md:p-3 text-center whitespace-nowrap">Term 3</th>
+                                    <th class="p-2 md:p-3 text-center whitespace-nowrap">Term 4</th>
+                                    <th class="p-2 md:p-3 text-center whitespace-nowrap">Total</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2322,7 +2353,9 @@
         }
 
         function loadTimetableForDate(date) {
-          dateDisplay.textContent = date.format("ddd, D MMM YYYY");
+          dateDisplay.textContent = date.format(
+            window.innerWidth < 768 ? "ddd, D MMM" : "ddd, D MMM YYYY",
+          );
           const weekType = getWeekType(date);
           const dayOfWeek = date.format("dddd").toLowerCase();
           const dateKey = date.format("YYYY-MM-DD");
@@ -2489,12 +2522,12 @@
 
               return `
                         <tr class="border-b">
-                            <td class="p-3">${timeText}</td>
-                            <td class="p-3">${periodText}</td>
-                            <td class="p-3">${classText}</td>
-                            <td class="p-3">${esc(task.originalTeacher.name)}</td>
-                            <td class="p-3">${assignedTeacherText}</td>
-                            <td class="p-3 text-center">${messageButton}</td>
+                            <td class="p-2 md:p-3 whitespace-nowrap">${timeText}</td>
+                            <td class="p-2 md:p-3 whitespace-nowrap">${periodText}</td>
+                            <td class="p-2 md:p-3">${classText}</td>
+                            <td class="p-2 md:p-3 whitespace-nowrap">${esc(task.originalTeacher.name)}</td>
+                            <td class="p-2 md:p-3 whitespace-nowrap">${assignedTeacherText}</td>
+                            <td class="p-2 md:p-3 text-center">${messageButton}</td>
                         </tr>
                     `;
             })
@@ -2502,16 +2535,16 @@
 
           container.innerHTML = `
                     <h3 class="text-xl font-semibold mb-4">Relief Summary for ${currentViewDate.format("dddd, D MMMM YYYY")}</h3>
-                    <div class="overflow-x-auto bg-white rounded-lg shadow">
-                        <table class="w-full text-sm text-left">
+                    <div class="table-scroll overflow-x-auto bg-white rounded-lg shadow">
+                        <table class="text-sm text-left">
                             <thead class="bg-gray-100 text-xs text-gray-700 uppercase">
                                 <tr>
-                                    <th class="p-3">Time</th>
-                                    <th class="p-3">Period(s)</th>
-                                    <th class="p-3">Class Details</th>
-                                    <th class="p-3">Original Teacher</th>
-                                    <th class="p-3">Covering Teacher</th>
-                                    <th class="p-3 text-center">Action</th>
+                                    <th class="p-2 md:p-3 whitespace-nowrap">Time</th>
+                                    <th class="p-2 md:p-3 whitespace-nowrap">Period(s)</th>
+                                    <th class="p-2 md:p-3 whitespace-nowrap">Class Details</th>
+                                    <th class="p-2 md:p-3 whitespace-nowrap">Original Teacher</th>
+                                    <th class="p-2 md:p-3 whitespace-nowrap">Covering Teacher</th>
+                                    <th class="p-2 md:p-3 text-center whitespace-nowrap">Action</th>
                                 </tr>
                             </thead>
                             <tbody>

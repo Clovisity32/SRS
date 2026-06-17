@@ -3,6 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Content Security Policy
+         'unsafe-inline' required: inline <script type="module"> contains the entire app.
+         'unsafe-eval' required: Tailwind Play CDN uses eval() for JIT CSS generation.
+         For a stricter policy, replace Tailwind Play CDN with a static Tailwind CLI build
+         and move the app script to an external .js file. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'none';
+        script-src 'self' 'unsafe-inline' 'unsafe-eval'
+          https://cdn.tailwindcss.com
+          https://cdn.jsdelivr.net
+          https://cdnjs.cloudflare.com
+          https://www.gstatic.com;
+        style-src 'self' 'unsafe-inline'
+          https://fonts.googleapis.com
+          https://cdn.tailwindcss.com;
+        font-src https://fonts.gstatic.com;
+        connect-src https://*.googleapis.com wss://*.firebaseio.com;
+        img-src 'self' data:;
+        worker-src blob:;
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+      "
+    />
     <title>Smart Relief Allocator</title>
     <!-- Tailwind Play CDN generates CSS dynamically — SRI not applicable.
          For production, replace with a static build via the Tailwind CLI. -->

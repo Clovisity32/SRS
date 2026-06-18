@@ -458,6 +458,25 @@
                 />
               </svg>
             </button>
+            <button
+              id="signOutBtn"
+              title="Sign out"
+              class="hidden p-2 rounded-full hover:bg-gray-200 text-gray-500"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"
+                />
+              </svg>
+            </button>
           </div>
         </header>
 
@@ -517,10 +536,76 @@
           </nav>
         </div>
 
+        <!-- Login Screen -->
+        <div
+          id="loginScreen"
+          class="flex-1 flex items-center justify-center p-6"
+        >
+          <div class="text-center max-w-sm">
+            <h1 class="text-3xl font-bold text-blue-700 mb-2">
+              Smart Allocator
+            </h1>
+            <p class="text-gray-500 mb-8">
+              Sign in to manage relief assignments.
+            </p>
+            <button
+              id="signInWithGoogleBtn"
+              class="inline-flex items-center gap-3 px-6 py-3 bg-white border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+            >
+              <svg class="w-5 h-5" viewBox="0 0 48 48">
+                <path
+                  fill="#EA4335"
+                  d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.5 30.2 0 24 0 14.8 0 6.9 5.4 3 13.3l7.8 6C12.8 13.4 17.9 9.5 24 9.5z"
+                />
+                <path
+                  fill="#4285F4"
+                  d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M10.8 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7L2.5 13.3A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.7l8.3-6z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.1 0-11.2-4-13.1-9.3l-8.1 6.2C6.9 42.6 14.8 48 24 48z"
+                />
+              </svg>
+              Sign in with Google
+            </button>
+            <p id="loginError" class="mt-4 text-sm text-red-600 hidden"></p>
+          </div>
+        </div>
+
+        <!-- Access Denied Screen -->
+        <div
+          id="accessDeniedScreen"
+          class="hidden flex-1 flex items-center justify-center p-6"
+        >
+          <div class="text-center max-w-sm">
+            <p class="text-4xl mb-4">&#128274;</p>
+            <h2 class="text-xl font-semibold text-gray-800 mb-2">
+              Access Denied
+            </h2>
+            <p class="text-gray-500 mb-1">
+              Your account doesn't have permission to access this app.
+            </p>
+            <p class="text-sm text-gray-400 mb-6">
+              Tell your coordinator to add:
+              <span id="deniedEmail" class="font-mono text-gray-700"></span>
+            </p>
+            <button
+              id="signOutFromDeniedBtn"
+              class="text-sm text-blue-600 underline"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+
         <!-- Tab Content -->
         <div
           id="loadingOverlay"
-          class="flex-1 p-6 overflow-y-auto flex items-center justify-center"
+          class="hidden p-6 overflow-y-auto flex items-center justify-center"
         >
           <div class="text-center">
             <svg
@@ -549,17 +634,28 @@
 
         <div
           id="mainContent"
-          class="flex-1 p-3 md:p-6 overflow-y-auto hidden pb-20 md:pb-6"
+          class="flex-1 overflow-y-auto hidden pb-20 md:pb-6"
         >
-          <div id="timetable" class="tab-content">
-            <!-- Timetable will be rendered here -->
+          <div
+            id="openModeBanner"
+            class="hidden bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-800"
+          >
+            &#9888;&#65039; Anyone with a Google account can access this app. Go
+            to <strong>Settings &rarr; Access Control</strong> to restrict
+            access.
           </div>
-          <div id="load" class="tab-content hidden">
-            <!-- Relief load overview will be injected here -->
+          <div class="p-3 md:p-6">
+            <div id="timetable" class="tab-content">
+              <!-- Timetable will be rendered here -->
+            </div>
+            <div id="load" class="tab-content hidden">
+              <!-- Relief load overview will be injected here -->
+            </div>
+            <div id="summary" class="tab-content hidden">
+              <!-- Daily summary will be rendered here -->
+            </div>
           </div>
-          <div id="summary" class="tab-content hidden">
-            <!-- Daily summary will be rendered here -->
-          </div>
+          <!-- end p-3 md:p-6 -->
         </div>
       </main>
 
@@ -833,7 +929,42 @@
           </button>
         </div>
         <div class="space-y-6 overflow-y-auto max-h-[75vh] pr-1">
-          <div>
+          <!-- Access Control — rendered by renderAccessControlUI(), shown to admins only -->
+          <div id="accessControlSection" class="hidden">
+            <label class="block text-sm font-medium text-gray-700"
+              >Access Control</label
+            >
+            <p class="text-xs text-gray-500 mt-1">
+              Add Google email addresses. Admins can change settings;
+              Coordinators can only assign relief.
+            </p>
+            <div
+              id="allowedUsersList"
+              class="mt-2 mb-3 space-y-1 max-h-36 overflow-y-auto border rounded p-2"
+            ></div>
+            <div class="flex gap-2 items-center flex-wrap">
+              <input
+                type="email"
+                id="newUserEmail"
+                placeholder="colleague@school.edu"
+                class="flex-1 min-w-[10rem] text-sm border border-gray-300 rounded-md px-2 py-1"
+              />
+              <select
+                id="newUserRole"
+                class="text-sm border border-gray-300 rounded-md px-2 py-1"
+              >
+                <option value="coordinator">Coordinator</option>
+                <option value="admin">Admin</option>
+              </select>
+              <button
+                id="addUserBtn"
+                class="text-sm bg-blue-600 text-white font-semibold px-3 py-1 rounded-md hover:bg-blue-700"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+          <div class="border-t pt-4">
             <label class="block text-sm font-medium text-gray-700"
               >Import Timetable</label
             >
@@ -1135,7 +1266,9 @@
       import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
       import {
         getAuth,
-        signInAnonymously,
+        GoogleAuthProvider,
+        signInWithPopup,
+        signOut,
         onAuthStateChanged,
       } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
       import {
@@ -1160,7 +1293,6 @@
 
       function initializeFirebase() {
         try {
-          // A simple check to see if the config is still the default placeholder
           if (!firebaseConfig.projectId || firebaseConfig.apiKey === "...") {
             throw new Error(
               "'projectId' or other essential keys not provided in firebaseConfig.",
@@ -1172,14 +1304,23 @@
 
           onAuthStateChanged(auth, (user) => {
             if (user) {
-              setupApp(db);
+              document.getElementById("loginScreen").classList.add("hidden");
+              setupApp(db, auth, user);
             } else {
-              signInAnonymously(auth).catch((error) => {
-                console.error("Anonymous sign-in failed:", error);
-                alert(
-                  "Could not connect to the database. Please check your Firebase setup and security rules.",
-                );
-              });
+              document.getElementById("loginScreen").classList.remove("hidden");
+              document.getElementById("loadingOverlay").classList.add("hidden");
+              document.getElementById("mainContent").classList.add("hidden");
+              document.getElementById("signInWithGoogleBtn").addEventListener(
+                "click",
+                () => {
+                  signInWithPopup(auth, new GoogleAuthProvider()).catch(() => {
+                    const el = document.getElementById("loginError");
+                    el.textContent = "Sign-in failed. Please try again.";
+                    el.classList.remove("hidden");
+                  });
+                },
+                { once: true },
+              );
             }
           });
         } catch (e) {
@@ -1189,14 +1330,13 @@
         }
       }
 
-      function setupApp(db) {
+      function setupApp(db, auth, currentUser) {
         const dataDocRef = doc(db, "app_data", "main");
 
-        runApp(db);
+        runApp(db, auth, currentUser);
 
         onSnapshot(dataDocRef, (docSnap) => {
           document.getElementById("loadingOverlay").classList.add("hidden");
-          document.getElementById("mainContent").classList.remove("hidden");
 
           if (docSnap.exists()) {
             const data = docSnap.data();
@@ -1207,7 +1347,7 @@
         });
       }
 
-      function runApp(db) {
+      function runApp(db, auth, currentUser) {
         dayjs.extend(window.dayjs_plugin_weekOfYear);
         dayjs.extend(window.dayjs_plugin_isSameOrAfter);
         dayjs.extend(window.dayjs_plugin_isBetween);
@@ -1232,6 +1372,8 @@
         let subjectGroups = [];
         let departments = [];
         let activeDepartment = "";
+        let allowedUsers = [];
+        let currentUserRole = "";
 
         let PERIODS = generatePeriods(periodSettings);
 
@@ -1388,6 +1530,7 @@
             periodSettings,
             subjectGroups,
             departments,
+            allowedUsers,
           };
           try {
             await setDoc(doc(db, "app_data", "main"), stateToSave);
@@ -1444,6 +1587,33 @@
                 ["Biology", "Pure Biology"],
               ];
           departments = Array.isArray(data.departments) ? data.departments : [];
+          allowedUsers = Array.isArray(data.allowedUsers)
+            ? data.allowedUsers
+            : [];
+
+          // Access check
+          if (allowedUsers.length === 0) {
+            currentUserRole = "admin"; // open mode — first setup
+          } else {
+            const entry = allowedUsers.find(
+              (u) => u.email.toLowerCase() === currentUser.email.toLowerCase(),
+            );
+            if (!entry) {
+              document.getElementById("mainContent").classList.add("hidden");
+              document.getElementById("loadingOverlay").classList.add("hidden");
+              const denied = document.getElementById("accessDeniedScreen");
+              denied.classList.remove("hidden");
+              document.getElementById("deniedEmail").textContent =
+                currentUser.email;
+              document
+                .getElementById("signOutFromDeniedBtn")
+                .addEventListener("click", () => signOut(auth), { once: true });
+              return;
+            }
+            currentUserRole = entry.role;
+          }
+
+          document.getElementById("mainContent").classList.remove("hidden");
           initializeAppUI();
         };
 
@@ -1476,6 +1646,25 @@
           updatePeriodSettingsPreview();
           renderDepartmentDropdown();
           loadTimetableForDate(currentViewDate);
+
+          // Role-based visibility
+          const isAdmin = currentUserRole === "admin";
+          document
+            .getElementById("settingsBtn")
+            ?.classList.toggle("hidden", !isAdmin);
+          document
+            .getElementById("mobileSettingsNavBtn")
+            ?.classList.toggle("hidden", !isAdmin);
+          document
+            .getElementById("signOutBtn")
+            ?.classList.toggle("hidden", false);
+
+          // Open-mode banner
+          const banner = document.getElementById("openModeBanner");
+          if (banner)
+            banner.classList.toggle("hidden", allowedUsers.length > 0);
+
+          renderAccessControlUI();
         }
 
         initializeApp();
@@ -2864,9 +3053,11 @@
                 .replace(/\{period\}/g, data.period)
                 .replace(/\{time\}/g, data.time)
                 .replace(/\{date\}/g, data.date);
+              const validEmail = /^[^\s@?&#+]+@[^\s@?&#+]+\.[^\s@?&#+]+$/;
               const emails = [data.reliefEmail, data.originalEmail]
-                .filter(Boolean)
+                .filter((e) => e && validEmail.test(e))
                 .join(",");
+              if (!emails) return;
               const subject = encodeURIComponent(
                 `Relief Assignment – ${data.date}`,
               );
@@ -3282,6 +3473,50 @@
           });
         }
 
+        function renderAccessControlUI() {
+          const section = document.getElementById("accessControlSection");
+          if (!section) return;
+          const isAdmin = currentUserRole === "admin";
+          section.classList.toggle("hidden", !isAdmin);
+          if (!isAdmin) return;
+
+          const listEl = document.getElementById("allowedUsersList");
+          if (allowedUsers.length === 0) {
+            listEl.innerHTML =
+              '<p class="text-xs text-gray-400 italic">No users added yet — open mode active.</p>';
+          } else {
+            listEl.innerHTML = allowedUsers
+              .map(
+                (u, i) => `
+              <div class="flex items-center justify-between py-1 border-b last:border-0">
+                <span class="text-sm text-gray-700">${esc(u.email)}</span>
+                <div class="flex items-center gap-2">
+                  <select data-user-idx="${i}" class="user-role-select text-xs border border-gray-200 rounded px-1 py-0.5">
+                    <option value="coordinator" ${u.role === "coordinator" ? "selected" : ""}>Coordinator</option>
+                    <option value="admin" ${u.role === "admin" ? "selected" : ""}>Admin</option>
+                  </select>
+                  <button data-user-idx="${i}" class="remove-user-btn text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-0.5 rounded hover:bg-red-50">Remove</button>
+                </div>
+              </div>`,
+              )
+              .join("");
+            listEl.querySelectorAll(".user-role-select").forEach((sel) => {
+              sel.addEventListener("change", () => {
+                allowedUsers[parseInt(sel.dataset.userIdx)].role = sel.value;
+              });
+            });
+            listEl.querySelectorAll(".remove-user-btn").forEach((btn) => {
+              btn.addEventListener("click", () => {
+                allowedUsers.splice(parseInt(btn.dataset.userIdx), 1);
+                renderAccessControlUI();
+                const banner = document.getElementById("openModeBanner");
+                if (banner)
+                  banner.classList.toggle("hidden", allowedUsers.length > 0);
+              });
+            });
+          }
+        }
+
         function initializeApp() {
           assignReliefBtn.addEventListener("click", () => {
             closeMobileSidebar();
@@ -3299,6 +3534,7 @@
             closeMobileSidebar();
             renderSubjectGroupsUI();
             renderDepartmentManagementUI();
+            renderAccessControlUI();
             openModal(settingsModal);
           });
           closeSettingsModal.addEventListener("click", () =>
@@ -3669,6 +3905,7 @@
           mobileSettingsNavBtnEl?.addEventListener("click", () => {
             renderSubjectGroupsUI();
             renderDepartmentManagementUI();
+            renderAccessControlUI();
             openModal(settingsModal);
           });
 
@@ -3717,6 +3954,30 @@
               renderDepartmentManagementUI();
               renderDepartmentDropdown();
             });
+
+          // Access control — add user
+          document
+            .getElementById("addUserBtn")
+            ?.addEventListener("click", () => {
+              const email = document
+                .getElementById("newUserEmail")
+                ?.value.trim()
+                .toLowerCase();
+              const role =
+                document.getElementById("newUserRole")?.value || "coordinator";
+              if (!email || allowedUsers.some((u) => u.email === email)) return;
+              allowedUsers.push({ email, role });
+              if (document.getElementById("newUserEmail"))
+                document.getElementById("newUserEmail").value = "";
+              renderAccessControlUI();
+              const banner = document.getElementById("openModeBanner");
+              if (banner) banner.classList.add("hidden");
+            });
+
+          // Sign out
+          document
+            .getElementById("signOutBtn")
+            ?.addEventListener("click", () => signOut(auth));
 
           // Period settings live preview
           ["periodStartTime", "periodDuration", "periodCount"].forEach((id) => {

@@ -96,6 +96,7 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 - Per-button data is stored in `draftMessageMap` (a `Map` keyed by `task.id`). Do not put serialised JSON in HTML attributes — read from the Map in click handlers via `e.target.dataset.msgKey`.
 - Run `/security-audit` after every implementation session that adds or changes `innerHTML` interpolation — a single hardening pass is not enough. Known missed sites caught in follow-up: `task.details.level/subject/stream` in the sidebar task card (`renderReliefTasksSidebar`), `d.name` in the relief load table (`renderReliefLoad`), and `classText` + `assignedTeacher.name` in the daily summary (`renderDailySummary`), and `task.id`/`msgKey` in `data-*` attributes across split/combine/undo/draft-message buttons, and `teacher.id` in `data-teacher-id` on timetable cells/buttons in `renderTeacherRow()`.
 - After any `esc()` hardening pass, verify completeness with: `grep -n 'data-[a-z-]*="\${[^e]' index.html` — catches data-\* attribute interpolations not wrapped in `esc()`.
+- Email addresses from Firestore must be validated with `/^[^\s@?&#+]+@[^\s@?&#+]+\.[^\s@?&#+]+$/` before use in `mailto:` URLs — prevents header injection (BCC/CC poisoning via stored `evil@x.com?bcc=victim`).
 
 ## Mobile Layout Notes
 
@@ -129,3 +130,5 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 | 2026-06 | XSS follow-up: 6 `data-*` attribute sites wrapped with `esc()` (data-task-id, data-msg-key); UX baseline audit 1.25/5 (7/7 Playwright); `.gitignore` and `tests/ux/` infra added |
 | 2026-06 | feat(generalise): configurable period settings (`generatePeriods`), subject equivalence groups (Tier 2 matching), department filter dropdown + teacher assignment in Settings    |
 | 2026-06 | Security follow-up: 4 pre-existing `data-teacher-id="\${teacher.id}"` sites in `renderTeacherRow()` wrapped with `esc()`; grep audit pattern added to Security Rules             |
+| 2026-06 | feat(email): teacher email field, CSV Email column, mailto: Send Email button (both teachers); blockedSlotsByDate preserved on re-import                                         |
+| 2026-06 | Security: email addresses validated with regex before mailto: URL construction to prevent header injection                                                                       |

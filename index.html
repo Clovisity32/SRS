@@ -409,6 +409,12 @@
                 Today
               </button>
             </div>
+            <select
+              id="departmentFilter"
+              class="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white max-w-[9rem] focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Departments</option>
+            </select>
             <button
               id="blockOutBtn"
               class="p-2 rounded-full hover:bg-gray-200"
@@ -826,7 +832,7 @@
             &times;
           </button>
         </div>
-        <div class="space-y-6">
+        <div class="space-y-6 overflow-y-auto max-h-[75vh] pr-1">
           <div>
             <label class="block text-sm font-medium text-gray-700"
               >Import Timetable</label
@@ -868,6 +874,137 @@
               <span id="uploadBtnText">Upload PDF or CSV Timetable</span>
             </button>
           </div>
+          <!-- Period Settings -->
+          <div class="border-t pt-6">
+            <label class="block text-sm font-medium text-gray-700"
+              >Period Settings</label
+            >
+            <p class="text-xs text-gray-500 mt-1">
+              Set start time, duration, and number of periods per day.
+              <strong
+                >Changing these requires re-importing your timetable.</strong
+              >
+            </p>
+            <div class="grid grid-cols-3 gap-3 mt-2">
+              <div>
+                <label
+                  for="periodStartTime"
+                  class="block text-xs font-medium text-gray-600"
+                  >Start Time</label
+                >
+                <input
+                  type="time"
+                  id="periodStartTime"
+                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-sm px-2 py-1"
+                />
+              </div>
+              <div>
+                <label
+                  for="periodDuration"
+                  class="block text-xs font-medium text-gray-600"
+                  >Duration (min)</label
+                >
+                <input
+                  type="number"
+                  id="periodDuration"
+                  min="5"
+                  max="120"
+                  step="5"
+                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-sm px-2 py-1"
+                />
+              </div>
+              <div>
+                <label
+                  for="periodCount"
+                  class="block text-xs font-medium text-gray-600"
+                  >No. of Periods</label
+                >
+                <input
+                  type="number"
+                  id="periodCount"
+                  min="1"
+                  max="30"
+                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-sm px-2 py-1"
+                />
+              </div>
+            </div>
+            <p
+              id="periodPreview"
+              class="mt-2 text-xs text-blue-700 font-mono bg-blue-50 p-2 rounded"
+            ></p>
+          </div>
+
+          <!-- Subject Equivalence Groups -->
+          <div class="border-t pt-6">
+            <label class="block text-sm font-medium text-gray-700"
+              >Subject Equivalence Groups</label
+            >
+            <p class="text-xs text-gray-500 mt-1">
+              Teachers whose subjects overlap with a group qualify as
+              <strong>Tier 2</strong> for any subject in that group. E.g.
+              "Physics, Pure Physics" means a Physics teacher can cover Pure
+              Physics relief and vice versa.
+            </p>
+            <div
+              id="subjectGroupsList"
+              class="mt-2 mb-3 space-y-1 max-h-36 overflow-y-auto border rounded p-2"
+            ></div>
+            <div class="flex gap-2 items-center">
+              <input
+                type="text"
+                id="newGroupInput"
+                placeholder="Physics, Pure Physics"
+                class="flex-1 text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                id="addGroupBtn"
+                class="text-sm bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-md hover:bg-blue-700"
+              >
+                Add
+              </button>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">
+              Enter subjects separated by commas. Minimum 2 subjects per group.
+            </p>
+          </div>
+
+          <!-- Department Management -->
+          <div class="border-t pt-6">
+            <label class="block text-sm font-medium text-gray-700"
+              >Departments</label
+            >
+            <p class="text-xs text-gray-500 mt-1">
+              Define departments and assign teachers to them. Use the department
+              filter in the header to view one department at a time.
+            </p>
+            <div
+              id="departmentList"
+              class="mt-2 mb-3 space-y-1 max-h-28 overflow-y-auto border rounded p-2"
+            ></div>
+            <div class="flex gap-2 items-center mb-4">
+              <input
+                type="text"
+                id="newDeptInput"
+                placeholder="e.g. Science"
+                class="flex-1 text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                id="addDeptBtn"
+                class="text-sm bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-md hover:bg-blue-700"
+              >
+                Add
+              </button>
+            </div>
+            <label class="block text-xs font-medium text-gray-600 mb-1"
+              >Teacher Assignments</label
+            >
+            <div class="max-h-48 overflow-y-auto border rounded">
+              <table class="w-full text-sm">
+                <tbody id="teacherDeptTable"></tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="border-t pt-6">
             <label class="block text-sm font-medium text-gray-700"
               >Term Start Dates</label
@@ -1056,24 +1193,28 @@
         dayjs.extend(window.dayjs_plugin_isSameOrAfter);
         dayjs.extend(window.dayjs_plugin_isBetween);
 
-        const PERIODS = [
-          { id: 1, time: "08:00-08:35" },
-          { id: 2, time: "08:35-09:10" },
-          { id: 3, time: "09:10-09:45" },
-          { id: 4, time: "09:45-10:20" },
-          { id: 5, time: "10:20-10:55" },
-          { id: 6, time: "10:55-11:30" },
-          { id: 7, time: "11:30-12:05" },
-          { id: 8, time: "12:05-12:40" },
-          { id: 9, time: "12:40-13:15" },
-          { id: 10, time: "13:15-13:50" },
-          { id: 11, time: "13:50-14:25" },
-          { id: 12, time: "14:25-15:00" },
-          { id: 13, time: "15:00-15:35" },
-          { id: 14, time: "15:35-16:10" },
-          { id: 15, time: "16:10-16:45" },
-          { id: 16, time: "16:45-17:20" },
-        ];
+        function generatePeriods({ startTime, durationMinutes, periodCount }) {
+          const [h, m] = startTime.split(":").map(Number);
+          let base = h * 60 + m;
+          const fmt = (t) =>
+            `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+          return Array.from({ length: periodCount }, (_, i) => {
+            const s = base + i * durationMinutes;
+            const e = s + durationMinutes;
+            return { id: i + 1, time: `${fmt(s)}-${fmt(e)}` };
+          });
+        }
+
+        let periodSettings = {
+          startTime: "08:00",
+          durationMinutes: 35,
+          periodCount: 16,
+        };
+        let subjectGroups = [];
+        let departments = [];
+        let activeDepartment = "";
+
+        let PERIODS = generatePeriods(periodSettings);
 
         let masterTeachers = [];
         let teachers = [];
@@ -1183,7 +1324,7 @@
           );
 
         const getPeriodDetails = (periodId) =>
-          PERIODS.find((p) => p.id === periodId);
+          PERIODS.find((p) => p.id === periodId) ?? { id: periodId, time: "?" };
         const getMasterTeacherDetails = (teacherId) =>
           masterTeachers.find((t) => t.id === teacherId);
         const getTeacherTimetableSlot = (teacher, periodId) =>
@@ -1225,6 +1366,9 @@
             },
             masterTeachers,
             messageTemplate,
+            periodSettings,
+            subjectGroups,
+            departments,
           };
           try {
             await setDoc(doc(db, "app_data", "main"), stateToSave);
@@ -1235,6 +1379,11 @@
 
         window.initializeAppStateAndSave = function () {
           initializeMockFullTimetable();
+          subjectGroups = [
+            ["Physics", "Pure Physics"],
+            ["Chemistry", "Pure Chemistry"],
+            ["Biology", "Pure Biology"],
+          ];
           if (Object.keys(reliefTasksByDate).length === 0) {
             addMockReliefTasks(currentViewDate);
           }
@@ -1259,6 +1408,23 @@
               .replace(/\{cover\}/g, "{reliefTeacher}")
               .replace(/\{original\}/g, "{absentTeacher}");
           }
+          if (
+            data.periodSettings &&
+            data.periodSettings.startTime &&
+            data.periodSettings.durationMinutes &&
+            data.periodSettings.periodCount
+          ) {
+            periodSettings = data.periodSettings;
+          }
+          PERIODS = generatePeriods(periodSettings);
+          subjectGroups = Array.isArray(data.subjectGroups)
+            ? data.subjectGroups
+            : [
+                ["Physics", "Pure Physics"],
+                ["Chemistry", "Pure Chemistry"],
+                ["Biology", "Pure Biology"],
+              ];
+          departments = Array.isArray(data.departments) ? data.departments : [];
           initializeAppUI();
         };
 
@@ -1282,6 +1448,14 @@
           term4Input.value = termStartDates.term4.format("YYYY-MM-DD");
           const templateInput = document.getElementById("messageTemplateInput");
           if (templateInput) templateInput.value = messageTemplate;
+          const psStart = document.getElementById("periodStartTime");
+          const psDur = document.getElementById("periodDuration");
+          const psCnt = document.getElementById("periodCount");
+          if (psStart) psStart.value = periodSettings.startTime;
+          if (psDur) psDur.value = periodSettings.durationMinutes;
+          if (psCnt) psCnt.value = periodSettings.periodCount;
+          updatePeriodSettingsPreview();
+          renderDepartmentDropdown();
           loadTimetableForDate(currentViewDate);
         }
 
@@ -1291,9 +1465,10 @@
           const container = document.getElementById("reliefTasksSidebar");
           const clearDayBtn = document.getElementById("clearDayReliefBtn");
           const dateKey = currentViewDate.format("YYYY-MM-DD");
-          const tasksForDay = reliefTasksByDate[dateKey] || [];
+          const tasksForDay = getFilteredReliefTasks(dateKey);
 
-          const pendingCount = tasksForDay.filter(
+          const allTasksForDay = reliefTasksByDate[dateKey] || [];
+          const pendingCount = allTasksForDay.filter(
             (t) => t.status === "pending",
           ).length;
           const badge = document.getElementById("mobileTasksBadge");
@@ -1303,7 +1478,14 @@
           }
 
           if (tasksForDay.length === 0) {
-            container.innerHTML = `<p class="text-sm text-gray-500 text-center py-4">No pending relief assignments.</p>`;
+            container.innerHTML = `<p class="text-sm text-gray-500 text-center py-4">No pending relief assignments${activeDepartment ? ` for ${esc(activeDepartment)}` : ""}.${activeDepartment ? ' <button class="underline text-blue-500 ml-1" id="clearDeptFilter">Show all</button>' : ""}</p>`;
+            const clearBtn = container.querySelector("#clearDeptFilter");
+            if (clearBtn)
+              clearBtn.addEventListener("click", () => {
+                activeDepartment = "";
+                renderDepartmentDropdown();
+                renderUI();
+              });
             if (clearDayBtn) clearDayBtn.classList.add("hidden");
             return;
           }
@@ -1508,8 +1690,12 @@
 
           try {
             const currentTimetableData = isBlockOutMode
-              ? blockOutTeachers
-              : teachers;
+              ? activeDepartment
+                ? blockOutTeachers.filter(
+                    (t) => t.department === activeDepartment,
+                  )
+                : blockOutTeachers
+              : getFilteredTeachers();
 
             const highlightedPeriods = new Set(
               selectedReliefContext
@@ -1733,7 +1919,11 @@
           const startOfWeek = currentViewDate.startOf("week");
           const endOfWeek = currentViewDate.endOf("week");
 
-          const loadData = masterTeachers
+          const sourceTeachers = activeDepartment
+            ? masterTeachers.filter((t) => t.department === activeDepartment)
+            : masterTeachers;
+
+          const loadData = sourceTeachers
             .map((teacher) => {
               const loads = {
                 name: teacher.name,
@@ -2221,8 +2411,9 @@
               return; // Found best match, continue to next teacher
             }
 
-            // Check for Tier 2: Subject Specialist (Same Subject, any Level)
-            if (teacher.subjects.includes(details.subject)) {
+            // Check for Tier 2: Subject Specialist (same group or same subject)
+            const equiv = getSubjectGroup(details.subject);
+            if (teacher.subjects.some((s) => equiv.includes(s))) {
               isTier2 = true;
             }
 
@@ -2859,6 +3050,167 @@
           }
         }
 
+        function getSubjectGroup(subject) {
+          for (const group of subjectGroups) {
+            if (group.includes(subject)) return group;
+          }
+          return [subject];
+        }
+
+        function getFilteredTeachers() {
+          if (!activeDepartment) return teachers;
+          return teachers.filter((t) => t.department === activeDepartment);
+        }
+
+        function getFilteredReliefTasks(dateKey) {
+          const tasks = reliefTasksByDate[dateKey] || [];
+          if (!activeDepartment) return tasks;
+          return tasks.filter((t) => {
+            const master = masterTeachers.find(
+              (m) => m.id === t.originalTeacher.id,
+            );
+            return (
+              (master ? master.department : t.originalTeacher.department) ===
+              activeDepartment
+            );
+          });
+        }
+
+        function renderDepartmentDropdown() {
+          const sel = document.getElementById("departmentFilter");
+          if (!sel) return;
+          sel.innerHTML =
+            '<option value="">All Departments</option>' +
+            departments
+              .map(
+                (d) =>
+                  `<option value="${esc(d)}" ${activeDepartment === d ? "selected" : ""}>${esc(d)}</option>`,
+              )
+              .join("");
+          sel.value = activeDepartment;
+        }
+
+        function updatePeriodSettingsPreview() {
+          const st =
+            document.getElementById("periodStartTime")?.value ||
+            periodSettings.startTime;
+          const dur =
+            parseInt(document.getElementById("periodDuration")?.value) ||
+            periodSettings.durationMinutes;
+          const cnt = Math.max(
+            1,
+            parseInt(document.getElementById("periodCount")?.value) ||
+              periodSettings.periodCount,
+          );
+          const preview = generatePeriods({
+            startTime: st,
+            durationMinutes: dur,
+            periodCount: cnt,
+          });
+          const sample = preview
+            .slice(0, 3)
+            .map((p) => `P${p.id}: ${p.time}`)
+            .join(" | ");
+          const el = document.getElementById("periodPreview");
+          if (el)
+            el.textContent =
+              sample + (cnt > 3 ? ` … P${cnt}: ${preview[cnt - 1].time}` : "");
+        }
+
+        function renderSubjectGroupsUI() {
+          const container = document.getElementById("subjectGroupsList");
+          if (!container) return;
+          if (subjectGroups.length === 0) {
+            container.innerHTML =
+              '<p class="text-xs text-gray-400 italic">No equivalence groups defined.</p>';
+            return;
+          }
+          container.innerHTML = subjectGroups
+            .map(
+              (group, idx) => `
+            <div class="flex items-center justify-between py-1 border-b last:border-0">
+              <span class="text-sm text-gray-700">${esc(group.join(", "))}</span>
+              <button data-group-idx="${idx}"
+                class="delete-group-btn text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-0.5 rounded hover:bg-red-50">
+                Remove
+              </button>
+            </div>`,
+            )
+            .join("");
+          container.querySelectorAll(".delete-group-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              subjectGroups.splice(parseInt(btn.dataset.groupIdx), 1);
+              renderSubjectGroupsUI();
+            });
+          });
+        }
+
+        function renderDepartmentManagementUI() {
+          const listEl = document.getElementById("departmentList");
+          const tableEl = document.getElementById("teacherDeptTable");
+          if (!listEl || !tableEl) return;
+
+          if (departments.length === 0) {
+            listEl.innerHTML =
+              '<p class="text-xs text-gray-400 italic">No departments defined.</p>';
+          } else {
+            listEl.innerHTML = departments
+              .map(
+                (d, i) => `
+              <div class="flex items-center justify-between py-1 border-b last:border-0">
+                <span class="text-sm text-gray-700">${esc(d)}</span>
+                <button data-dept-idx="${i}"
+                  class="delete-dept-btn text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-0.5 rounded hover:bg-red-50">
+                  Remove
+                </button>
+              </div>`,
+              )
+              .join("");
+            listEl.querySelectorAll(".delete-dept-btn").forEach((btn) => {
+              btn.addEventListener("click", () => {
+                const d = departments[parseInt(btn.dataset.deptIdx)];
+                departments.splice(parseInt(btn.dataset.deptIdx), 1);
+                masterTeachers.forEach((t) => {
+                  if (t.department === d) t.department = "";
+                });
+                if (activeDepartment === d) {
+                  activeDepartment = "";
+                  renderDepartmentDropdown();
+                }
+                renderDepartmentManagementUI();
+              });
+            });
+          }
+
+          if (masterTeachers.length === 0) {
+            tableEl.innerHTML =
+              '<tr><td class="py-2 text-xs text-gray-400 italic">Import a timetable first.</td></tr>';
+            return;
+          }
+          tableEl.innerHTML = masterTeachers
+            .map(
+              (t) => `
+            <tr class="border-b">
+              <td class="py-1 pr-3 text-sm whitespace-nowrap">${esc(t.name)}</td>
+              <td class="py-1">
+                <select data-teacher-id="${esc(t.id)}" class="teacher-dept-select text-sm border border-gray-200 rounded px-1 py-0.5 w-full">
+                  <option value="">— None —</option>
+                  ${departments.map((d) => `<option value="${esc(d)}" ${t.department === d ? "selected" : ""}>${esc(d)}</option>`).join("")}
+                </select>
+              </td>
+            </tr>`,
+            )
+            .join("");
+          tableEl.querySelectorAll(".teacher-dept-select").forEach((sel) => {
+            sel.addEventListener("change", () => {
+              const teacher = masterTeachers.find(
+                (t) => t.id === sel.dataset.teacherId,
+              );
+              if (teacher) teacher.department = sel.value;
+            });
+          });
+        }
+
         function initializeApp() {
           assignReliefBtn.addEventListener("click", () => {
             closeMobileSidebar();
@@ -2874,6 +3226,8 @@
           });
           settingsBtn.addEventListener("click", () => {
             closeMobileSidebar();
+            renderSubjectGroupsUI();
+            renderDepartmentManagementUI();
             openModal(settingsModal);
           });
           closeSettingsModal.addEventListener("click", () =>
@@ -2887,8 +3241,31 @@
             const tmplInput = document.getElementById("messageTemplateInput");
             if (tmplInput && tmplInput.value.trim())
               messageTemplate = tmplInput.value;
+            const newPS = {
+              startTime:
+                document.getElementById("periodStartTime")?.value || "08:00",
+              durationMinutes:
+                parseInt(document.getElementById("periodDuration")?.value) ||
+                35,
+              periodCount: Math.max(
+                1,
+                Math.min(
+                  30,
+                  parseInt(document.getElementById("periodCount")?.value) || 16,
+                ),
+              ),
+            };
+            const periodChanged =
+              JSON.stringify(newPS) !== JSON.stringify(periodSettings);
+            periodSettings = newPS;
+            PERIODS = generatePeriods(periodSettings);
+            populatePeriodDropdowns();
             saveStateToFirestore();
             closeModal(settingsModal);
+            if (periodChanged)
+              alert(
+                "Period settings changed. Please re-import your timetable CSV to match the new period count.",
+              );
           });
           downloadTemplateLink.addEventListener("click", (e) => {
             e.preventDefault();
@@ -2898,16 +3275,16 @@
             const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
             for (const week of weeks) {
               for (const day of days) {
-                for (let p = 1; p <= 16; p++) {
+                for (let p = 1; p <= periodSettings.periodCount; p++) {
                   csvHeaders.push(`"${week} ${day} P${p}"`);
                 }
               }
             }
 
             const exampleRow = new Array(csvHeaders.length).fill("");
-            exampleRow[0] = '"Ms Tan (Math)"';
-            exampleRow[1] = '"1 Math 1E"';
-            exampleRow[1 + 16 + 4] = '"2 Math 2A"';
+            exampleRow[0] = '"Ms Tan (Science)"';
+            exampleRow[1] = '"1 Chemistry G1"';
+            exampleRow[1 + periodSettings.periodCount] = '"2 Physics G2"';
 
             const csvContent = [
               csvHeaders.join(","),
@@ -3217,9 +3594,64 @@
             resetAssignReliefModal();
             openModal(assignReliefModal);
           });
-          mobileSettingsNavBtnEl?.addEventListener("click", () =>
-            openModal(settingsModal),
-          );
+          mobileSettingsNavBtnEl?.addEventListener("click", () => {
+            renderSubjectGroupsUI();
+            renderDepartmentManagementUI();
+            openModal(settingsModal);
+          });
+
+          // Department filter
+          document
+            .getElementById("departmentFilter")
+            ?.addEventListener("change", (e) => {
+              activeDepartment = e.target.value;
+              selectedReliefContext = null;
+              renderUI();
+            });
+
+          // Subject group add
+          document
+            .getElementById("addGroupBtn")
+            ?.addEventListener("click", () => {
+              const raw = document
+                .getElementById("newGroupInput")
+                ?.value.trim();
+              if (!raw) return;
+              const group = raw
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+              if (group.length < 2) {
+                alert(
+                  "A group must contain at least 2 subjects separated by commas.",
+                );
+                return;
+              }
+              subjectGroups.push(group);
+              document.getElementById("newGroupInput").value = "";
+              renderSubjectGroupsUI();
+            });
+
+          // Department add
+          document
+            .getElementById("addDeptBtn")
+            ?.addEventListener("click", () => {
+              const name = document
+                .getElementById("newDeptInput")
+                ?.value.trim();
+              if (!name || departments.includes(name)) return;
+              departments.push(name);
+              document.getElementById("newDeptInput").value = "";
+              renderDepartmentManagementUI();
+              renderDepartmentDropdown();
+            });
+
+          // Period settings live preview
+          ["periodStartTime", "periodDuration", "periodCount"].forEach((id) => {
+            document
+              .getElementById(id)
+              ?.addEventListener("input", updatePeriodSettingsPreview);
+          });
 
           // Reset message template to default
           document

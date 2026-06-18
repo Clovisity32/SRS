@@ -19,12 +19,21 @@
           https://cdn.tailwindcss.com
           https://cdn.jsdelivr.net
           https://cdnjs.cloudflare.com
-          https://www.gstatic.com;
+          https://www.gstatic.com
+          https://apis.google.com
+          https://accounts.google.com;
         style-src 'self' 'unsafe-inline'
           https://fonts.googleapis.com
-          https://cdn.tailwindcss.com;
+          https://cdn.tailwindcss.com
+          https://accounts.google.com;
         font-src https://fonts.gstatic.com;
-        connect-src https://*.googleapis.com wss://*.firebaseio.com;
+        connect-src https://*.googleapis.com wss://*.firebaseio.com
+          https://www.gstatic.com
+          https://apis.google.com
+          https://accounts.google.com;
+        frame-src https://smart-relief-system.web.app
+          https://smart-relief-system.firebaseapp.com
+          https://accounts.google.com;
         img-src 'self' data:;
         worker-src blob:;
         object-src 'none';
@@ -245,14 +254,23 @@
           overflow-y: auto;
         }
       }
-      /* Safe-area insets for iPhone home indicator */
+      /* Extra bottom padding so nav labels clear Android Chrome's bottom bar */
+      @media (max-width: 767px) {
+        #mobileBottomNav {
+          padding-bottom: 2rem;
+        }
+        #mainContent {
+          padding-bottom: 6rem !important;
+        }
+      }
+      /* Safe-area insets for iPhone home indicator (on top of base padding) */
       @supports (padding-bottom: env(safe-area-inset-bottom)) {
         @media (max-width: 767px) {
           #mobileBottomNav {
-            padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+            padding-bottom: max(2rem, env(safe-area-inset-bottom));
           }
           #mainContent {
-            padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
+            padding-bottom: calc(6rem + env(safe-area-inset-bottom)) !important;
           }
         }
       }
@@ -264,10 +282,20 @@
       textarea {
         touch-action: manipulation;
       }
-      /* Smooth momentum scroll on the horizontal table container */
+      /* Smooth momentum scroll on the horizontal table container.
+         max-height makes this the vertical scroll container too, so
+         sticky top-0 (period header) and sticky left-0 (teacher col)
+         both work within the same scroll ancestor. */
       .table-scroll {
         -webkit-overflow-scrolling: touch;
         overflow-x: scroll;
+        overflow-y: auto;
+        max-height: calc(100dvh - 8rem); /* desktop: header + tabs */
+      }
+      @media (max-width: 767px) {
+        .table-scroll {
+          max-height: calc(100dvh - 14rem); /* mobile: + bottom nav */
+        }
       }
     </style>
   </head>
@@ -420,13 +448,13 @@
             </div>
             <select
               id="departmentFilter"
-              class="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white max-w-[9rem] focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              class="hidden md:block text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white max-w-[9rem] focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">All Departments</option>
             </select>
             <button
               id="blockOutBtn"
-              class="p-2 rounded-full hover:bg-gray-200"
+              class="hidden md:block p-2 rounded-full hover:bg-gray-200"
               title="Block Out Mode"
             >
               <svg
@@ -685,7 +713,7 @@
       <!-- Mobile Bottom Navigation -->
       <nav
         id="mobileBottomNav"
-        class="hidden md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex items-center justify-around px-4 pt-2 pb-5 z-20 shadow-lg"
+        class="hidden md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex items-center justify-around px-4 pt-2 pb-8 z-20 shadow-lg"
       >
         <button
           id="mobileTasksBtn"
@@ -1640,7 +1668,7 @@
               masterTeachers,
               messageTemplate,
               periodSettings,
-              subjectGroups,
+              subjectGroups: subjectGroups.map((g) => ({ subjects: g })),
               departments,
               allowedUsers,
             };
@@ -1755,7 +1783,9 @@
           }
           PERIODS = generatePeriods(periodSettings);
           subjectGroups = Array.isArray(data.subjectGroups)
-            ? data.subjectGroups
+            ? data.subjectGroups.map((g) =>
+                Array.isArray(g) ? g : g.subjects || [],
+              )
             : [
                 ["Physics", "Pure Physics"],
                 ["Chemistry", "Pure Chemistry"],

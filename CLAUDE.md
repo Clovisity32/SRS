@@ -132,3 +132,4 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 | 2026-06 | Security follow-up: 4 pre-existing `data-teacher-id="\${teacher.id}"` sites in `renderTeacherRow()` wrapped with `esc()`; grep audit pattern added to Security Rules             |
 | 2026-06 | feat(email): teacher email field, CSV Email column, mailto: Send Email button (both teachers); blockedSlotsByDate preserved on re-import                                         |
 | 2026-06 | Security: email addresses validated with regex before mailto: URL construction to prevent header injection                                                                       |
+| 2026-06 | feat(auth): Google OAuth replaces anonymous sign-in; admin/coordinator roles; allowlist in Firestore; open-mode banner; access denied screen                                     |

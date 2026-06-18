@@ -1,0 +1,7 @@
+node_modules/
+debug/
+test-results/
+*.pdf
+*.jpeg
+*.jpg
+*.png

@@ -1365,7 +1365,7 @@
                   });
 
                   if (isPerfectMatch) {
-                    splitButton = `<button data-task-id="${task.id}" class="split-task-btn text-xs text-blue-600 hover:underline mt-1 text-left">Split Assignment</button>`;
+                    splitButton = `<button data-task-id="${esc(task.id)}" class="split-task-btn text-xs text-blue-600 hover:underline mt-1 text-left">Split Assignment</button>`;
                   }
                 }
 
@@ -1385,7 +1385,7 @@
                     nextTask.details.level === task.details.level &&
                     nextTask.details.stream === task.details.stream
                   ) {
-                    combineButton = `<button data-task-id="${task.id}" class="combine-task-btn text-xs text-green-600 hover:underline mt-1 text-left">Combine with next</button>`;
+                    combineButton = `<button data-task-id="${esc(task.id)}" class="combine-task-btn text-xs text-green-600 hover:underline mt-1 text-left">Combine with next</button>`;
                   }
                 }
 
@@ -1398,9 +1398,9 @@
                     ? "bg-blue-100 ring-2 ring-blue-500 text-blue-800"
                     : `${cardBgClass} hover:opacity-80`;
 
-                let actionButtonHTML = `<button data-task-id="${task.id}" class="edit-task-btn p-1.5 hover:bg-gray-300 rounded-full"><svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>`;
+                let actionButtonHTML = `<button data-task-id="${esc(task.id)}" class="edit-task-btn p-1.5 hover:bg-gray-300 rounded-full"><svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>`;
                 if (task.status === "assigned") {
-                  actionButtonHTML = `<button data-task-id="${task.id}" class="undo-task-btn p-1.5 hover:bg-gray-300 rounded-full" title="Undo Assignment"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" /></svg></button>`;
+                  actionButtonHTML = `<button data-task-id="${esc(task.id)}" class="undo-task-btn p-1.5 hover:bg-gray-300 rounded-full" title="Undo Assignment"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" /></svg></button>`;
                 }
 
                 const multiPeriodIndicator =
@@ -1410,14 +1410,15 @@
                 const paddingClass = task.periods.length > 1 ? "pl-6" : "pl-3";
 
                 return `
-                        <div data-task-id="${task.id}" class="relative relief-task-item py-3 pr-3 ${paddingClass} rounded-lg cursor-pointer ${selectedClass}">
+                        <div data-task-id="${esc(task.id)}" class="relative relief-task-item py-3 pr-3 ${paddingClass} rounded-lg cursor-pointer ${selectedClass}">
                             ${multiPeriodIndicator}
                             <div class="flex items-center justify-between">
                                 <div>
                                     <p class="font-semibold text-sm">${task.periods[0].time} - ${periodText} (${task.periods.length} Period${task.periods.length > 1 ? "s" : ""})</p>
-                                    <p class="text-xs">${esc(task.details.level)} ${esc(task.details.subject)} (${esc(task.details.stream)})</p>
+                                    <p class="text-xs">${esc(task.details.level)} ${esc(task.details.subject)}${task.details.stream ? ` (${esc(task.details.stream)})` : ""}</p>
                                     <p class="text-xs text-current opacity-75">Original: ${esc(task.originalTeacher.name)}</p>
                                     <div class="flex space-x-2">${splitButton} ${combineButton}</div>
+                                    ${task.status === "pending" ? `<span class="text-xs font-medium opacity-50 mt-0.5 block">Tap to find replacement →</span>` : ""}
                                 </div>
                                 <div class="flex items-center space-x-2">
                                     ${actionButtonHTML}
@@ -2106,7 +2107,7 @@
                                 <input type="checkbox" id="period-${slot.period}" value="${slot.period}" class="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500 mr-3 period-checkbox">
                                 <div>
                                     <span class="font-medium">Period ${slot.period} (${periodDetails.time})</span>
-                                    <span class="text-gray-600 text-sm block">${esc(slot.level)} ${esc(slot.subject)} (${esc(slot.stream)})</span>
+                                    <span class="text-gray-600 text-sm block">${esc(slot.level)} ${esc(slot.subject)}${slot.stream ? ` (${esc(slot.stream)})` : ""}</span>
                                 </div>
                              </label>`;
             })
@@ -2514,7 +2515,7 @@
                   ? ` - P${task.periods[task.periods.length - 1].id}`
                   : "");
               const timeText = `${task.periods[0].time.split("-")[0]} - ${task.periods[task.periods.length - 1].time.split("-")[1]}`;
-              const classText = `${esc(task.details.level)} ${esc(task.details.subject)} (${esc(task.details.stream)})`;
+              const classText = `${esc(task.details.level)} ${esc(task.details.subject)}${task.details.stream ? ` (${esc(task.details.stream)})` : ""}`;
               const assignedTeacherText = task.assignedTeacher
                 ? esc(task.assignedTeacher.name)
                 : `<span class="italic text-gray-500">Pending</span>`;
@@ -2530,7 +2531,7 @@
                   time: timeText,
                   date: currentViewDate.format("ddd, D MMM"),
                 });
-                messageButton = `<button class="draft-message-btn bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded" data-msg-key="${msgKey}">Draft Message</button>`;
+                messageButton = `<button class="draft-message-btn bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded" data-msg-key="${esc(msgKey)}">Draft Message</button>`;
               }
 
               return `
@@ -3044,7 +3045,7 @@
 
             if (modalMode === "new" && isTeacherAlreadyUnavailable) {
               errorMessageEl.textContent =
-                "This teacher has already been marked as unavailable for this day.";
+                "This teacher has already been marked as unavailable for this day. Select a different teacher or change the date.";
               errorMessageEl.classList.remove("hidden");
               return;
             }

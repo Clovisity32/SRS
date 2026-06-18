@@ -94,7 +94,8 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 - All Firestore-sourced values injected into `innerHTML` **must** be wrapped with `esc()` — defined inside `runApp()` near `draftMessageMap`. Never interpolate `teacher.name`, `slot.subject`, `slot.level`, or `slot.stream` directly into template literals used with `innerHTML`.
 - `data-*` HTML attributes are equally injection vectors as `innerHTML` — apply `esc()` to **all** interpolated values in HTML, including attribute values, not just text nodes.
 - Per-button data is stored in `draftMessageMap` (a `Map` keyed by `task.id`). Do not put serialised JSON in HTML attributes — read from the Map in click handlers via `e.target.dataset.msgKey`.
-- Run `/security-audit` after every implementation session that adds or changes `innerHTML` interpolation — a single hardening pass is not enough. Known missed sites caught in follow-up: `task.details.level/subject/stream` in the sidebar task card (`renderReliefTasksSidebar`), `d.name` in the relief load table (`renderReliefLoad`), and `classText` + `assignedTeacher.name` in the daily summary (`renderDailySummary`), and `task.id`/`msgKey` in `data-*` attributes across split/combine/undo/draft-message buttons.
+- Run `/security-audit` after every implementation session that adds or changes `innerHTML` interpolation — a single hardening pass is not enough. Known missed sites caught in follow-up: `task.details.level/subject/stream` in the sidebar task card (`renderReliefTasksSidebar`), `d.name` in the relief load table (`renderReliefLoad`), and `classText` + `assignedTeacher.name` in the daily summary (`renderDailySummary`), and `task.id`/`msgKey` in `data-*` attributes across split/combine/undo/draft-message buttons, and `teacher.id` in `data-teacher-id` on timetable cells/buttons in `renderTeacherRow()`.
+- After any `esc()` hardening pass, verify completeness with: `grep -n 'data-[a-z-]*="\${[^e]' index.html` — catches data-\* attribute interpolations not wrapped in `esc()`.
 
 ## Mobile Layout Notes
 
@@ -126,3 +127,5 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 | 2026-06 | CSP `<meta>` tag added to `index.html`; `unsafe-inline`/`unsafe-eval` documented as Tailwind Play CDN constraints                                                                |
 | 2026-06 | XSS follow-up: 4 missed `esc()` sites fixed (sidebar task card, relief load table, daily summary classText + assignedTeacher)                                                    |
 | 2026-06 | XSS follow-up: 6 `data-*` attribute sites wrapped with `esc()` (data-task-id, data-msg-key); UX baseline audit 1.25/5 (7/7 Playwright); `.gitignore` and `tests/ux/` infra added |
+| 2026-06 | feat(generalise): configurable period settings (`generatePeriods`), subject equivalence groups (Tier 2 matching), department filter dropdown + teacher assignment in Settings    |
+| 2026-06 | Security follow-up: 4 pre-existing `data-teacher-id="\${teacher.id}"` sites in `renderTeacherRow()` wrapped with `esc()`; grep audit pattern added to Security Rules             |

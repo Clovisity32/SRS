@@ -1745,9 +1745,9 @@
                   );
 
                   if (isAssignable) {
-                    assignButton = `<button data-teacher-id="${teacher.id}" class="assign-in-timetable-btn mt-2 w-full bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600 transition">Assign</button>`;
+                    assignButton = `<button data-teacher-id="${esc(teacher.id)}" class="assign-in-timetable-btn mt-2 w-full bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600 transition">Assign</button>`;
                   } else if (isTier4) {
-                    assignButton = `<button data-teacher-id="${teacher.id}" class="assign-in-timetable-btn mt-2 w-full bg-orange-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-orange-600 transition">
+                    assignButton = `<button data-teacher-id="${esc(teacher.id)}" class="assign-in-timetable-btn mt-2 w-full bg-orange-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-orange-600 transition">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline-block mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
                                         Assign Anyway
                                     </button>`;
@@ -1788,11 +1788,11 @@
                     cellContent = `<div class="font-semibold">${esc(slot.level)} ${esc(slot.subject || "")}</div><div class="text-xs">${esc(slot.stream || "")}</div>`;
                   }
                 }
-                return `<td class="p-1 border text-center text-xs timetable-slot-cell cursor-pointer hover:bg-gray-200 ${cellClass}" data-teacher-id="${teacher.id}" data-period-id="${period.id}">${cellContent}</td>`;
+                return `<td class="p-1 border text-center text-xs timetable-slot-cell cursor-pointer hover:bg-gray-200 ${cellClass}" data-teacher-id="${esc(teacher.id)}" data-period-id="${period.id}">${cellContent}</td>`;
               }).join("");
 
               return `<tr class="${rowClass}">
-                            <td class="sticky left-0 z-10 p-1 md:p-2 border font-semibold text-xs md:text-sm bg-gray-50 whitespace-nowrap teacher-name-cell cursor-pointer hover:bg-gray-200" data-teacher-id="${teacher.id}">
+                            <td class="sticky left-0 z-10 p-1 md:p-2 border font-semibold text-xs md:text-sm bg-gray-50 whitespace-nowrap teacher-name-cell cursor-pointer hover:bg-gray-200" data-teacher-id="${esc(teacher.id)}">
                                 <div>${esc(teacher.name)}</div>
                                 ${constraintsDisplay}
                                 ${assignButton}

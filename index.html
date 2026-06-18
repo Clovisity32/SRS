@@ -268,7 +268,7 @@
       <!-- ===== Left Sidebar (Control Panel) ===== -->
       <aside
         id="sidebar"
-        class="w-72 bg-white border-r border-gray-200 flex flex-col p-4"
+        class="hidden w-72 bg-white border-r border-gray-200 flex flex-col p-4"
       >
         <!-- Mobile drag handle -->
         <div class="md:hidden flex justify-center mb-3 -mt-1">
@@ -360,7 +360,8 @@
       <main class="flex-1 flex flex-col min-w-0">
         <!-- Header -->
         <header
-          class="bg-white border-b border-gray-200 flex items-center justify-between p-2 md:p-4 shadow-sm"
+          id="appHeader"
+          class="hidden bg-white border-b border-gray-200 flex items-center justify-between p-2 md:p-4 shadow-sm"
         >
           <div class="flex items-center">
             <h2 class="text-base md:text-xl font-semibold">
@@ -662,7 +663,7 @@
       <!-- Mobile Bottom Navigation -->
       <nav
         id="mobileBottomNav"
-        class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex items-center justify-around px-4 pt-2 pb-5 z-20 shadow-lg"
+        class="hidden md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex items-center justify-around px-4 pt-2 pb-5 z-20 shadow-lg"
       >
         <button
           id="mobileTasksBtn"
@@ -1310,17 +1311,19 @@
               document.getElementById("loginScreen").classList.remove("hidden");
               document.getElementById("loadingOverlay").classList.add("hidden");
               document.getElementById("mainContent").classList.add("hidden");
-              document.getElementById("signInWithGoogleBtn").addEventListener(
-                "click",
-                () => {
-                  signInWithPopup(auth, new GoogleAuthProvider()).catch(() => {
-                    const el = document.getElementById("loginError");
-                    el.textContent = "Sign-in failed. Please try again.";
-                    el.classList.remove("hidden");
-                  });
-                },
-                { once: true },
-              );
+              // Use onclick (not addEventListener) so re-assignment on each
+              // onAuthStateChanged(null) replaces the previous handler, preventing
+              // listener stacking, while still allowing retry after a failed attempt.
+              document.getElementById("signInWithGoogleBtn").onclick = () => {
+                signInWithPopup(auth, new GoogleAuthProvider()).catch((err) => {
+                  const el = document.getElementById("loginError");
+                  el.textContent =
+                    err?.code === "auth/popup-blocked"
+                      ? "Popup was blocked. Please allow popups for this site and try again."
+                      : "Sign-in failed. Please try again.";
+                  el.classList.remove("hidden");
+                });
+              };
             }
           });
         } catch (e) {
@@ -1646,6 +1649,13 @@
           updatePeriodSettingsPreview();
           renderDepartmentDropdown();
           loadTimetableForDate(currentViewDate);
+
+          // Reveal chrome now that auth is confirmed
+          document.getElementById("sidebar")?.classList.remove("hidden");
+          document.getElementById("appHeader")?.classList.remove("hidden");
+          document
+            .getElementById("mobileBottomNav")
+            ?.classList.remove("hidden");
 
           // Role-based visibility
           const isAdmin = currentUserRole === "admin";
@@ -3567,6 +3577,21 @@
             periodSettings = newPS;
             PERIODS = generatePeriods(periodSettings);
             populatePeriodDropdowns();
+            // Prevent self-lockout: if the allowlist is non-empty and doesn't
+            // include the current admin, add them automatically before saving.
+            if (
+              allowedUsers.length > 0 &&
+              !allowedUsers.some(
+                (u) =>
+                  u.email.toLowerCase() === currentUser.email.toLowerCase(),
+              )
+            ) {
+              allowedUsers.unshift({
+                email: currentUser.email.toLowerCase(),
+                role: "admin",
+              });
+              renderAccessControlUI();
+            }
             saveStateToFirestore();
             closeModal(settingsModal);
             if (periodChanged)

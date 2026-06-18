@@ -3,7 +3,9 @@
  *
  * Role: School coordinator who manages teacher relief assignments.
  * Entry: http://localhost:8080 (static index.html)
- * Auth: Firebase anonymous sign-in (automatic)
+ * Auth: Google OAuth — tests skip gracefully when no Google session is active.
+ *       To run the full suite, sign in via the browser first so Firebase
+ *       persists the session in IndexedDB, then re-run.
  *
  * Note: Uses stable element IDs instead of data-testid — the app has
  * no build step, so adding testids would require HTML edits. All IDs
@@ -12,24 +14,36 @@
 
 import { test, expect, Page } from "@playwright/test";
 import * as path from "path";
-import * as fs from "fs";
 
 const SS = (name: string) => path.join("debug", `ux-coordinator-${name}.png`);
 
-async function waitForApp(page: Page) {
-  // Firebase anonymous auth + Firestore snapshot — give up to 20 s
-  await page.waitForFunction(
-    () =>
-      document.getElementById("loadingOverlay")?.classList.contains("hidden"),
-    { timeout: 20000 },
-  );
-  await page.waitForSelector("#mainContent:not(.hidden)", { timeout: 5000 });
+/**
+ * Returns true if the app loaded and the user is authenticated.
+ * Returns false if the login screen is showing (no active Google session).
+ * Throws if neither state appears within the timeout.
+ */
+async function waitForApp(page: Page): Promise<boolean> {
+  // Firebase onAuthStateChanged fires within ~3s of page load.
+  // Wait for mainContent to appear (signed in) or fall back after timeout.
+  try {
+    await page.waitForSelector("#mainContent:not(.hidden)", { timeout: 8000 });
+    return true;
+  } catch {
+    const loginVisible = await page.locator("#loginScreen").isVisible();
+    if (loginVisible) return false;
+    throw new Error(
+      "App neither authenticated nor showing login screen after 8 s — Firebase may have failed to initialise.",
+    );
+  }
 }
 
 // ── Step 1: App loads ────────────────────────────────────────────────────────
 test("01 — app loads and shows dashboard", async ({ page }) => {
   await page.goto("/");
-  await waitForApp(page);
+  if (!(await waitForApp(page))) {
+    test.skip();
+    return;
+  }
 
   await page.screenshot({ path: SS("01-load") });
 
@@ -43,7 +57,10 @@ test("02 — Assign Relief modal opens with all 3 steps visible", async ({
   page,
 }) => {
   await page.goto("/");
-  await waitForApp(page);
+  if (!(await waitForApp(page))) {
+    test.skip();
+    return;
+  }
 
   await page.click("#assignReliefBtn");
   await page.screenshot({ path: SS("02-modal-open") });
@@ -60,7 +77,10 @@ test("02 — Assign Relief modal opens with all 3 steps visible", async ({
 // ── Step 3: Selecting a teacher populates the period list ────────────────────
 test("03 — selecting a teacher populates period list", async ({ page }) => {
   await page.goto("/");
-  await waitForApp(page);
+  if (!(await waitForApp(page))) {
+    test.skip();
+    return;
+  }
 
   await page.click("#assignReliefBtn");
 
@@ -68,7 +88,6 @@ test("03 — selecting a teacher populates period list", async ({ page }) => {
   const optionCount = await teacherSelect.locator("option").count();
 
   if (optionCount <= 1) {
-    // No teachers loaded — record and skip gracefully
     await page.screenshot({ path: SS("03-no-teachers") });
     test.skip();
     return;
@@ -91,11 +110,14 @@ test("04 — full assign flow: pending task → click in sidebar → tier view �
   page,
 }) => {
   await page.goto("/");
-  await waitForApp(page);
+  if (!(await waitForApp(page))) {
+    test.skip();
+    return;
+  }
 
   // ── Phase A: ensure at least one pending task exists ────────────────────────
   // Use existing Firestore data if present; otherwise create a task on a future date.
-  let hasPendingTask =
+  const hasPendingTask =
     (await page.locator(".relief-task-item").count()) > 0 &&
     (await page.locator(".relief-task-item").first().getAttribute("class")) !==
       null;
@@ -152,7 +174,10 @@ test("05 — duplicate teacher on same day shows inline error", async ({
   page,
 }) => {
   await page.goto("/");
-  await waitForApp(page);
+  if (!(await waitForApp(page))) {
+    test.skip();
+    return;
+  }
 
   await page.click("#assignReliefBtn");
   const teacherSelect = page.locator("#teacherSelect");
@@ -193,7 +218,10 @@ test("05 — duplicate teacher on same day shows inline error", async ({
 // ── Step 6: Tab navigation ───────────────────────────────────────────────────
 test("06 — tab navigation switches panels", async ({ page }) => {
   await page.goto("/");
-  await waitForApp(page);
+  if (!(await waitForApp(page))) {
+    test.skip();
+    return;
+  }
 
   // Navigate to Relief Load tab
   await page.click('[data-tab="load"]');
@@ -210,7 +238,10 @@ test("06 — tab navigation switches panels", async ({ page }) => {
 // ── Step 7: Settings modal ───────────────────────────────────────────────────
 test("07 — settings modal opens and accepts term dates", async ({ page }) => {
   await page.goto("/");
-  await waitForApp(page);
+  if (!(await waitForApp(page))) {
+    test.skip();
+    return;
+  }
 
   await page.click("#settingsBtn");
   await page.screenshot({ path: SS("07-settings-open") });

@@ -1395,7 +1395,7 @@
                   const loginError = document.getElementById("loginError");
                   loginError.classList.add("hidden");
 
-                  signInWithPopup(auth, provider).catch((err) => {
+                  signInWithPopup(auth, provider).catch(async (err) => {
                     const knownMessages = {
                       "auth/web-storage-unsupported":
                         "Sign-in is blocked because browser storage is disabled. Enable cookies/storage in your privacy settings and try again.",

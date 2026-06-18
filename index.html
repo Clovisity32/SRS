@@ -1270,6 +1270,8 @@
         getAuth,
         GoogleAuthProvider,
         signInWithPopup,
+        signInWithRedirect,
+        getRedirectResult,
         signOut,
         onAuthStateChanged,
       } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
@@ -1304,6 +1306,14 @@
           const db = getFirestore(app);
           const auth = getAuth(app);
 
+          // Handle redirect result first (covers incognito / popup-blocked fallback).
+          // getRedirectResult resolves immediately with null when no redirect is pending.
+          getRedirectResult(auth).catch((err) => {
+            const el = document.getElementById("loginError");
+            el.textContent = `Sign-in failed: ${err?.message || "unknown error"}`;
+            el.classList.remove("hidden");
+          });
+
           onAuthStateChanged(auth, (user) => {
             if (user) {
               document.getElementById("loginScreen").classList.add("hidden");
@@ -1312,17 +1322,30 @@
               document.getElementById("loginScreen").classList.remove("hidden");
               document.getElementById("loadingOverlay").classList.add("hidden");
               document.getElementById("mainContent").classList.add("hidden");
-              // Use onclick (not addEventListener) so re-assignment on each
-              // onAuthStateChanged(null) replaces the previous handler, preventing
-              // listener stacking, while still allowing retry after a failed attempt.
+
+              const provider = new GoogleAuthProvider();
+
+              // Use onclick so re-assignment on each onAuthStateChanged(null) call
+              // replaces the previous handler — no stacked listeners, retry always works.
               document.getElementById("signInWithGoogleBtn").onclick = () => {
-                signInWithPopup(auth, new GoogleAuthProvider()).catch((err) => {
-                  const el = document.getElementById("loginError");
-                  el.textContent =
-                    err?.code === "auth/popup-blocked"
-                      ? "Popup was blocked. Please allow popups for this site and try again."
-                      : "Sign-in failed. Please try again.";
-                  el.classList.remove("hidden");
+                const loginError = document.getElementById("loginError");
+                loginError.classList.add("hidden");
+
+                signInWithPopup(auth, provider).catch((err) => {
+                  // Popup blocked or third-party cookie restriction (common in incognito)
+                  // → fall back to full-page redirect which always works.
+                  const redirectCodes = [
+                    "auth/popup-blocked",
+                    "auth/popup-closed-by-user",
+                    "auth/cancelled-popup-request",
+                    "auth/internal-error",
+                  ];
+                  if (redirectCodes.includes(err?.code)) {
+                    signInWithRedirect(auth, provider);
+                  } else {
+                    loginError.textContent = `Sign-in failed: ${err?.message || "Please try again."}`;
+                    loginError.classList.remove("hidden");
+                  }
                 });
               };
             }

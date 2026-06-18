@@ -1279,6 +1279,8 @@
         getFirestore,
         doc,
         setDoc,
+        getDoc,
+        updateDoc,
         onSnapshot,
       } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
 
@@ -1543,26 +1545,67 @@
         }
 
         async function saveStateToFirestore() {
-          const stateToSave = {
-            fullTimetable,
-            reliefTasksByDate,
-            termStartDates: {
-              term1: termStartDates.term1.format(),
-              term2: termStartDates.term2.format(),
-              term3: termStartDates.term3.format(),
-              term4: termStartDates.term4.format(),
-            },
-            masterTeachers,
-            messageTemplate,
-            periodSettings,
-            subjectGroups,
-            departments,
-            allowedUsers,
-          };
           try {
+            const stateToSave = {
+              fullTimetable,
+              reliefTasksByDate,
+              termStartDates: {
+                term1: termStartDates.term1.format(),
+                term2: termStartDates.term2.format(),
+                term3: termStartDates.term3.format(),
+                term4: termStartDates.term4.format(),
+              },
+              masterTeachers,
+              messageTemplate,
+              periodSettings,
+              subjectGroups,
+              departments,
+              allowedUsers,
+            };
+            console.log(
+              "[SRS save] writing allowedUsers:",
+              JSON.stringify(stateToSave.allowedUsers),
+            );
             await setDoc(doc(db, "app_data", "main"), stateToSave);
+            console.log(
+              "[SRS save] setDoc OK — allowedUsers:",
+              JSON.stringify(stateToSave.allowedUsers),
+            );
           } catch (e) {
-            console.error("Error saving state to Firestore: ", e);
+            console.error("[SRS save] FAILED:", e.code, e.message);
+            showSaveError(e);
+          }
+        }
+
+        async function saveAllowedUsers() {
+          try {
+            console.log(
+              "[SRS saveAllowedUsers] writing:",
+              JSON.stringify(allowedUsers),
+            );
+            await updateDoc(doc(db, "app_data", "main"), { allowedUsers });
+            // Verify the write actually landed in Firestore
+            const snap = await getDoc(doc(db, "app_data", "main"));
+            const verified = snap.data()?.allowedUsers;
+            console.log(
+              "[SRS saveAllowedUsers] verified read-back:",
+              JSON.stringify(verified),
+            );
+            if (
+              !Array.isArray(verified) ||
+              verified.length !== allowedUsers.length
+            ) {
+              showSaveError({
+                message:
+                  "allowedUsers write verification failed — Firestore returned different data than what was saved.",
+              });
+            } else {
+              showSaveSuccess(
+                `Access saved — ${allowedUsers.length} user${allowedUsers.length === 1 ? "" : "s"} in allowlist.`,
+              );
+            }
+          } catch (e) {
+            console.error("[SRS saveAllowedUsers] FAILED:", e.code, e.message);
             showSaveError(e);
           }
         }
@@ -1575,9 +1618,18 @@
           const toast = document.createElement("div");
           toast.textContent = msg;
           toast.className =
-            "fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-600 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-lg z-50 max-w-sm text-center";
+            "fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-600 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-lg z-[9999] max-w-sm text-center";
           document.body.appendChild(toast);
           setTimeout(() => toast.remove(), 8000);
+        }
+
+        function showSaveSuccess(msg) {
+          const toast = document.createElement("div");
+          toast.textContent = msg;
+          toast.className =
+            "fixed bottom-4 left-1/2 -translate-x-1/2 bg-green-600 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-lg z-[9999] max-w-sm text-center";
+          document.body.appendChild(toast);
+          setTimeout(() => toast.remove(), 5000);
         }
 
         window.initializeAppStateAndSave = function () {
@@ -1631,6 +1683,12 @@
           allowedUsers = Array.isArray(data.allowedUsers)
             ? data.allowedUsers
             : [];
+          console.log(
+            "[SRS load] data.allowedUsers from Firestore:",
+            JSON.stringify(data.allowedUsers),
+            "→ allowedUsers:",
+            JSON.stringify(allowedUsers),
+          );
 
           // Access check
           if (allowedUsers.length === 0) {
@@ -3647,6 +3705,7 @@
             }
             renderAccessControlUI();
             saveStateToFirestore();
+            saveAllowedUsers();
             closeModal(settingsModal);
             if (periodChanged)
               alert(

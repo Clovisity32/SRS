@@ -1402,26 +1402,26 @@
                       "auth/unauthorized-domain": `Sign-in is not allowed from this address (${window.location.hostname}). Add it to Firebase Console → Authentication → Authorized domains.`,
                       "auth/operation-not-supported-in-this-environment":
                         "Sign-in requires http:// or https://. Open the app via a local server (npx serve . or python -m http.server 8080) instead of opening the file directly.",
+                      // Chrome 115+ blocks the firebaseapp.com auth iframe that
+                      // Firebase uses for state sync. Both popup and redirect hit this
+                      // same block on localhost, so redirect fallback just loops.
+                      // Fix: use the deployed HTTPS URL, or allow third-party cookies
+                      // for localhost in Chrome settings.
+                      "auth/internal-error":
+                        "Sign-in was blocked by Chrome’s privacy settings. Open the app at its deployed URL (not localhost), or go to Chrome → Settings → Privacy → Third-party cookies and allow cookies for this site, then try again.",
                     };
                     if (knownMessages[err?.code]) {
                       loginError.textContent = knownMessages[err?.code];
                       loginError.classList.remove("hidden");
                       return;
                     }
-                    // Popup blocked or third-party cookie restriction (common in incognito)
-                    // → fall back to full-page redirect which always works.
+                    // Popup blocked — fall back to full-page redirect.
                     const redirectCodes = [
                       "auth/popup-blocked",
                       "auth/popup-closed-by-user",
                       "auth/cancelled-popup-request",
-                      "auth/internal-error",
                     ];
                     if (redirectCodes.includes(err?.code)) {
-                      // Await persistence change so the pending redirect state is
-                      // written to localStorage, not IndexedDB. Chrome 115+ blocks
-                      // the cross-origin iframe that Firebase needs to read IndexedDB
-                      // back from firebaseapp.com, causing getRedirectResult to throw
-                      // auth/internal-error on return. localStorage needs no iframe.
                       await persistenceReady;
                       sessionStorage.setItem(REDIRECT_KEY, "1");
                       signInWithRedirect(auth, provider);

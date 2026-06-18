@@ -1337,8 +1337,13 @@
           // Switch to localStorage persistence so Firebase doesn't use a
           // cross-origin iframe to sync IndexedDB auth state. Chrome 115+
           // blocks that iframe, causing getRedirectResult → auth/internal-error.
-          // Fire-and-forget: resolves before any user interaction can happen.
-          setPersistence(auth, browserLocalPersistence).catch(() => {});
+          // Stored so the redirect handler can await it before signInWithRedirect —
+          // that ensures the pending redirect state is written to localStorage,
+          // not IndexedDB, so getRedirectResult can read it back without an iframe.
+          const persistenceReady = setPersistence(
+            auth,
+            browserLocalPersistence,
+          ).catch(() => {});
 
           // Track whether this page load is returning from a redirect sign-in.
           // Only show getRedirectResult errors when we know we initiated a redirect —
@@ -1385,40 +1390,47 @@
 
               // Use onclick so re-assignment on each onAuthStateChanged(null) call
               // replaces the previous handler — no stacked listeners, retry always works.
-              document.getElementById("signInWithGoogleBtn").onclick = () => {
-                const loginError = document.getElementById("loginError");
-                loginError.classList.add("hidden");
+              document.getElementById("signInWithGoogleBtn").onclick =
+                async () => {
+                  const loginError = document.getElementById("loginError");
+                  loginError.classList.add("hidden");
 
-                signInWithPopup(auth, provider).catch((err) => {
-                  const knownMessages = {
-                    "auth/web-storage-unsupported":
-                      "Sign-in is blocked because browser storage is disabled. Enable cookies/storage in your privacy settings and try again.",
-                    "auth/unauthorized-domain": `Sign-in is not allowed from this address (${window.location.hostname}). Add it to Firebase Console → Authentication → Authorized domains.`,
-                    "auth/operation-not-supported-in-this-environment":
-                      "Sign-in requires http:// or https://. Open the app via a local server (npx serve . or python -m http.server 8080) instead of opening the file directly.",
-                  };
-                  if (knownMessages[err?.code]) {
-                    loginError.textContent = knownMessages[err?.code];
-                    loginError.classList.remove("hidden");
-                    return;
-                  }
-                  // Popup blocked or third-party cookie restriction (common in incognito)
-                  // → fall back to full-page redirect which always works.
-                  const redirectCodes = [
-                    "auth/popup-blocked",
-                    "auth/popup-closed-by-user",
-                    "auth/cancelled-popup-request",
-                    "auth/internal-error",
-                  ];
-                  if (redirectCodes.includes(err?.code)) {
-                    sessionStorage.setItem(REDIRECT_KEY, "1");
-                    signInWithRedirect(auth, provider);
-                  } else {
-                    loginError.textContent = `Sign-in failed: ${err?.message || "Please try again."}`;
-                    loginError.classList.remove("hidden");
-                  }
-                });
-              };
+                  signInWithPopup(auth, provider).catch((err) => {
+                    const knownMessages = {
+                      "auth/web-storage-unsupported":
+                        "Sign-in is blocked because browser storage is disabled. Enable cookies/storage in your privacy settings and try again.",
+                      "auth/unauthorized-domain": `Sign-in is not allowed from this address (${window.location.hostname}). Add it to Firebase Console → Authentication → Authorized domains.`,
+                      "auth/operation-not-supported-in-this-environment":
+                        "Sign-in requires http:// or https://. Open the app via a local server (npx serve . or python -m http.server 8080) instead of opening the file directly.",
+                    };
+                    if (knownMessages[err?.code]) {
+                      loginError.textContent = knownMessages[err?.code];
+                      loginError.classList.remove("hidden");
+                      return;
+                    }
+                    // Popup blocked or third-party cookie restriction (common in incognito)
+                    // → fall back to full-page redirect which always works.
+                    const redirectCodes = [
+                      "auth/popup-blocked",
+                      "auth/popup-closed-by-user",
+                      "auth/cancelled-popup-request",
+                      "auth/internal-error",
+                    ];
+                    if (redirectCodes.includes(err?.code)) {
+                      // Await persistence change so the pending redirect state is
+                      // written to localStorage, not IndexedDB. Chrome 115+ blocks
+                      // the cross-origin iframe that Firebase needs to read IndexedDB
+                      // back from firebaseapp.com, causing getRedirectResult to throw
+                      // auth/internal-error on return. localStorage needs no iframe.
+                      await persistenceReady;
+                      sessionStorage.setItem(REDIRECT_KEY, "1");
+                      signInWithRedirect(auth, provider);
+                    } else {
+                      loginError.textContent = `Sign-in failed: ${err?.message || "Please try again."}`;
+                      loginError.classList.remove("hidden");
+                    }
+                  });
+                };
             }
           });
         } catch (e) {

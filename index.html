@@ -1280,7 +1280,8 @@
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
       import {
-        getAuth,
+        initializeAuth,
+        browserLocalPersistence,
         GoogleAuthProvider,
         signInWithPopup,
         signInWithRedirect,
@@ -1331,7 +1332,13 @@
           }
           const app = initializeApp(firebaseConfig);
           const db = getFirestore(app);
-          const auth = getAuth(app);
+          // Use localStorage persistence instead of the default IndexedDB.
+          // Chrome 115+ blocks Firebase's cross-origin iframe (used to sync
+          // IndexedDB auth state), causing getRedirectResult to fail with
+          // auth/internal-error. localStorage avoids the iframe entirely.
+          const auth = initializeAuth(app, {
+            persistence: browserLocalPersistence,
+          });
 
           // Track whether this page load is returning from a redirect sign-in.
           // Only show getRedirectResult errors when we know we initiated a redirect —

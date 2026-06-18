@@ -18,7 +18,7 @@ All dependencies (Tailwind CSS, Day.js, Firebase) are loaded via CDN at runtime.
 
 **Everything lives in one file: `index.html`.** There is no framework, no bundler, no npm, and no tests.
 
-The script tag at the bottom is `type="module"` and uses Firebase ES module imports from `gstatic.com`. The entire application logic is inside `runApp(db)`, which is called after Firebase auth resolves.
+The script tag at the bottom is `type="module"` and uses Firebase ES module imports from `gstatic.com`. The entire application logic is inside `runApp(db, auth, currentUser)`, which is called after Firebase auth resolves.
 
 ### State
 
@@ -48,9 +48,10 @@ All state is persisted to a single Firestore document: `app_data/main`. Every mu
 
 ### Data flow
 
-1. Firebase auth (anonymous) resolves → `setupApp(db)` called
+1. Google OAuth resolves via `onAuthStateChanged` → `setupApp(db, auth, user)` called
 2. `onSnapshot` on `app_data/main` fires → calls `loadStateFromFirestore()` or `initializeAppStateAndSave()` (first run with mock data)
-3. Any user action mutates the three state objects → `saveStateToFirestore()` → Firestore `onSnapshot` fires again → `loadStateFromFirestore()` re-renders the UI
+3. `loadStateFromFirestore()` checks `allowedUsers` — empty list = open mode (admin); otherwise verifies current user's email against the list and shows Access Denied if not found
+4. Any user action mutates the three state objects → `saveStateToFirestore()` → Firestore `onSnapshot` fires again → `loadStateFromFirestore()` re-renders the UI
 
 ### Week type (Odd/Even)
 
@@ -74,12 +75,13 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 ## Firebase
 
 - Project: `smart-relief-system`
-- Auth: anonymous sign-in only — no user accounts
+- Auth: Google OAuth (`GoogleAuthProvider` + `signInWithPopup`). Two roles: `admin` (full Settings access) and `coordinator` (relief assignment only). Allowlist stored in `allowedUsers: [{email, role}]` inside `app_data/main`. Empty allowlist = open mode (any Google account gets admin access — first-time setup).
 - Database: Firestore, single document `app_data/main`
-- Security rules: `firestore.rules` in repo root — deploy with `firebase deploy --only firestore:rules`
-  - Auth gate: `request.auth != null` (anonymous sign-in passes; bare REST calls without SDK are blocked)
+- Security rules: `firestore.rules` in repo root — **must deploy** with `firebase deploy --only firestore:rules` after any change. The file on disk is NOT automatically deployed.
+  - Auth gate: `request.auth != null` (Google sign-in passes; bare REST calls without SDK are blocked)
   - Path allowlist: only `app_data/main` accessible; wildcard deny covers everything else
   - Write validation: 5 required top-level keys, type checks on `masterTeachers` (list), `messageTemplate` (string), `termStartDates` (map with term1–4)
+- `saveStateToFirestore()` shows a red toast on write failure (including `permission-denied`) — if saves silently fail, redeploy rules first.
 
 ## CSP Notes
 
@@ -109,6 +111,7 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 - `isMobile: true` in Playwright inflates `getBoundingClientRect()` by the device scale factor (2–3×). For CSS-pixel measurements use `offsetWidth` / `getComputedStyle().width` instead.
 - Check element widths at two points: immediately after `domcontentloaded` (pre-data) and after Firebase resolves. Widths can differ significantly once tables render with real content, so a passing pre-load check doesn't guarantee a correct post-load layout.
 - Tests run against live Firestore — state is non-deterministic across runs. Write tests that branch on whether data exists (use it if present, create it if not) rather than assuming a clean slate.
+- Google OAuth cannot be automated in Playwright. Use `async waitForApp(page): Promise<boolean>` — try `waitForSelector("#mainContent:not(.hidden)", { timeout: 8000 })`, catch → check `#loginScreen` visibility → return `false`. Each test starts with `if (!(await waitForApp(page))) { test.skip(); return; }`. Auth-independent checks live in `tests/ux/auth-visibility.spec.ts`.
 
 ## UI Conventions
 
@@ -133,3 +136,6 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 | 2026-06 | feat(email): teacher email field, CSV Email column, mailto: Send Email button (both teachers); blockedSlotsByDate preserved on re-import                                         |
 | 2026-06 | Security: email addresses validated with regex before mailto: URL construction to prevent header injection                                                                       |
 | 2026-06 | feat(auth): Google OAuth replaces anonymous sign-in; admin/coordinator roles; allowlist in Firestore; open-mode banner; access denied screen                                     |
+| 2026-06 | fix(auth): sidebar/header/mobile nav hidden until `initializeAppUI()` confirms access; auth-visibility Playwright spec added                                                     |
+| 2026-06 | fix(auth): self-lockout prevention (auto-add current user as admin on first save); sign-in button uses `.onclick` so retry works after failure; popup-blocked error message      |
+| 2026-06 | fix(save): flush pending email input on Save & Close; `showSaveError()` toast surfaces silent write failures; redeployed `firestore.rules` (stale rules were root cause)         |

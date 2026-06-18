@@ -1000,6 +1000,25 @@
             >
             <div class="max-h-48 overflow-y-auto border rounded">
               <table class="w-full text-sm">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th
+                      class="py-1 px-2 text-left text-xs font-medium text-gray-500"
+                    >
+                      Teacher
+                    </th>
+                    <th
+                      class="py-1 px-2 text-left text-xs font-medium text-gray-500"
+                    >
+                      Department
+                    </th>
+                    <th
+                      class="py-1 px-2 text-left text-xs font-medium text-gray-500"
+                    >
+                      Email
+                    </th>
+                  </tr>
+                </thead>
                 <tbody id="teacherDeptTable"></tbody>
               </table>
             </div>
@@ -2724,6 +2743,14 @@
               let messageButton = "";
               if (task.status === "assigned") {
                 const msgKey = task.id;
+                const reliefTeacherRecord = masterTeachers.find(
+                  (t) => t.id === task.assignedTeacher.id,
+                );
+                const originalTeacherRecord = masterTeachers.find(
+                  (t) => t.id === task.originalTeacher.id,
+                );
+                const reliefEmail = reliefTeacherRecord?.email || "";
+                const originalEmail = originalTeacherRecord?.email || "";
                 draftMessageMap.set(msgKey, {
                   original: task.originalTeacher.name,
                   cover: task.assignedTeacher.name,
@@ -2731,8 +2758,16 @@
                   period: periodText,
                   time: timeText,
                   date: currentViewDate.format("ddd, D MMM"),
+                  reliefEmail,
+                  originalEmail,
                 });
-                messageButton = `<button class="draft-message-btn bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded" data-msg-key="${esc(msgKey)}">Draft Message</button>`;
+                const emails = [reliefEmail, originalEmail]
+                  .filter(Boolean)
+                  .join(",");
+                const emailBtn = emails
+                  ? `<button class="send-email-btn bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1 px-3 rounded" data-msg-key="${esc(msgKey)}">Send Email</button>`
+                  : "";
+                messageButton = `<div class="flex gap-1 justify-center flex-wrap"><button class="draft-message-btn bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded" data-msg-key="${esc(msgKey)}">Copy Message</button>${emailBtn}</div>`;
               }
 
               return `
@@ -2815,6 +2850,28 @@
               }
 
               document.body.removeChild(textArea);
+            });
+          });
+
+          container.querySelectorAll(".send-email-btn").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+              const data = draftMessageMap.get(e.target.dataset.msgKey);
+              if (!data) return;
+              const message = messageTemplate
+                .replace(/\{reliefTeacher\}/g, data.cover)
+                .replace(/\{absentTeacher\}/g, data.original)
+                .replace(/\{class\}/g, data.class)
+                .replace(/\{period\}/g, data.period)
+                .replace(/\{time\}/g, data.time)
+                .replace(/\{date\}/g, data.date);
+              const emails = [data.reliefEmail, data.originalEmail]
+                .filter(Boolean)
+                .join(",");
+              const subject = encodeURIComponent(
+                `Relief Assignment – ${data.date}`,
+              );
+              const body = encodeURIComponent(message);
+              window.location.href = `mailto:${emails}?subject=${subject}&body=${body}`;
             });
           });
         }
@@ -3191,12 +3248,18 @@
             .map(
               (t) => `
             <tr class="border-b">
-              <td class="py-1 pr-3 text-sm whitespace-nowrap">${esc(t.name)}</td>
-              <td class="py-1">
+              <td class="py-1 pr-2 text-sm whitespace-nowrap">${esc(t.name)}</td>
+              <td class="py-1 pr-2">
                 <select data-teacher-id="${esc(t.id)}" class="teacher-dept-select text-sm border border-gray-200 rounded px-1 py-0.5 w-full">
                   <option value="">— None —</option>
                   ${departments.map((d) => `<option value="${esc(d)}" ${t.department === d ? "selected" : ""}>${esc(d)}</option>`).join("")}
                 </select>
+              </td>
+              <td class="py-1">
+                <input type="email" data-teacher-id="${esc(t.id)}"
+                  class="teacher-email-input text-sm border border-gray-200 rounded px-1 py-0.5 w-full min-w-[10rem]"
+                  placeholder="email@school.edu"
+                  value="${esc(t.email || "")}" />
               </td>
             </tr>`,
             )
@@ -3207,6 +3270,14 @@
                 (t) => t.id === sel.dataset.teacherId,
               );
               if (teacher) teacher.department = sel.value;
+            });
+          });
+          tableEl.querySelectorAll(".teacher-email-input").forEach((input) => {
+            input.addEventListener("change", () => {
+              const teacher = masterTeachers.find(
+                (t) => t.id === input.dataset.teacherId,
+              );
+              if (teacher) teacher.email = input.value.trim();
             });
           });
         }
@@ -3270,7 +3341,7 @@
           downloadTemplateLink.addEventListener("click", (e) => {
             e.preventDefault();
 
-            const csvHeaders = ["Teacher"];
+            const csvHeaders = ["Teacher", "Email"];
             const weeks = ["Odd", "Even"];
             const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
             for (const week of weeks) {
@@ -3283,8 +3354,9 @@
 
             const exampleRow = new Array(csvHeaders.length).fill("");
             exampleRow[0] = '"Ms Tan (Science)"';
-            exampleRow[1] = '"1 Chemistry G1"';
-            exampleRow[1 + periodSettings.periodCount] = '"2 Physics G2"';
+            exampleRow[1] = "mstan@school.edu";
+            exampleRow[2] = '"1 Chemistry G1"';
+            exampleRow[2 + periodSettings.periodCount] = '"2 Physics G2"';
 
             const csvContent = [
               csvHeaders.join(","),
@@ -4075,6 +4147,9 @@
             );
 
           const headers = lines[0].split(",").map((h) => h.trim());
+          const emailColIdx = headers.findIndex(
+            (h) => h.replace(/^"|"$/g, "").toLowerCase() === "email",
+          );
 
           const newMasterTeachers = new Map();
           const newFullTimetable = {};
@@ -4098,12 +4173,22 @@
             const teacherId =
               "t_" + fullTeacherName.toLowerCase().replace(/[^a-z0-9]/g, "_");
 
+            const existingTeacher = masterTeachers.find(
+              (t) => t.id === teacherId,
+            );
+            const csvEmail =
+              emailColIdx !== -1
+                ? (data[emailColIdx] || "").trim().replace(/^"|"$/g, "")
+                : "";
+
             if (!newMasterTeachers.has(teacherId)) {
               newMasterTeachers.set(teacherId, {
                 id: teacherId,
                 name: fullTeacherName,
                 department,
                 subjects: [],
+                email: csvEmail || existingTeacher?.email || "",
+                blockedSlotsByDate: existingTeacher?.blockedSlotsByDate || {},
               });
             }
             const teacher = newMasterTeachers.get(teacherId);

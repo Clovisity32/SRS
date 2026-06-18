@@ -1330,6 +1330,15 @@
               document.getElementById("loginScreen").classList.remove("hidden");
               document.getElementById("loadingOverlay").classList.add("hidden");
               document.getElementById("mainContent").classList.add("hidden");
+              // Close any modals left open from the authenticated session.
+              // They are position:fixed outside #mainContent so hiding mainContent
+              // alone doesn't dismiss them.
+              ["modalBackdrop", "settingsModal", "assignReliefModal"].forEach(
+                (id) => {
+                  const el = document.getElementById(id);
+                  if (el) el.style.display = "none";
+                },
+              );
 
               const provider = new GoogleAuthProvider();
 

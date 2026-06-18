@@ -936,7 +936,8 @@
               >Access Control</label
             >
             <p class="text-xs text-gray-500 mt-1">
-              Add Google email addresses. Admins can change settings;
+              Add Google email addresses, then click
+              <strong>Save &amp; Close</strong>. Admins can change settings;
               Coordinators can only assign relief.
             </p>
             <div
@@ -1539,7 +1540,21 @@
             await setDoc(doc(db, "app_data", "main"), stateToSave);
           } catch (e) {
             console.error("Error saving state to Firestore: ", e);
+            showSaveError(e);
           }
+        }
+
+        function showSaveError(e) {
+          const msg =
+            e?.code === "permission-denied"
+              ? "Save failed: permission denied. The Firestore security rules rejected the write — redeploy rules or check Firebase Console."
+              : `Save failed: ${e?.message || "unknown error"}. Check the browser console for details.`;
+          const toast = document.createElement("div");
+          toast.textContent = msg;
+          toast.className =
+            "fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-600 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-lg z-50 max-w-sm text-center";
+          document.body.appendChild(toast);
+          setTimeout(() => toast.remove(), 8000);
         }
 
         window.initializeAppStateAndSave = function () {
@@ -3577,6 +3592,22 @@
             periodSettings = newPS;
             PERIODS = generatePeriods(periodSettings);
             populatePeriodDropdowns();
+            // Flush any email typed into the Add field that wasn't explicitly
+            // added — users often type and hit Save without clicking Add first.
+            const pendingEmail = document
+              .getElementById("newUserEmail")
+              ?.value.trim()
+              .toLowerCase();
+            const pendingRole =
+              document.getElementById("newUserRole")?.value || "coordinator";
+            if (
+              pendingEmail &&
+              !allowedUsers.some((u) => u.email === pendingEmail)
+            ) {
+              allowedUsers.push({ email: pendingEmail, role: pendingRole });
+              if (document.getElementById("newUserEmail"))
+                document.getElementById("newUserEmail").value = "";
+            }
             // Prevent self-lockout: if the allowlist is non-empty and doesn't
             // include the current admin, add them automatically before saving.
             if (
@@ -3590,8 +3621,8 @@
                 email: currentUser.email.toLowerCase(),
                 role: "admin",
               });
-              renderAccessControlUI();
             }
+            renderAccessControlUI();
             saveStateToFirestore();
             closeModal(settingsModal);
             if (periodChanged)

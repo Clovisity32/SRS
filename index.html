@@ -178,6 +178,13 @@
       .teacher-name-cell {
         transform: translate(0);
         box-shadow: 2px 0 4px -1px rgba(0, 0, 0, 0.08);
+        width: 120px;
+        min-width: 120px;
+      }
+      .period-header-cell,
+      .timetable-slot-cell {
+        width: 60px;
+        min-width: 60px;
       }
       /* Step badge in modal */
       .step-badge {
@@ -397,7 +404,7 @@
               </button>
               <button
                 id="todayBtn"
-                class="hidden md:inline-flex ml-2 px-3 py-1.5 text-sm font-semibold text-blue-600 bg-blue-100 rounded-md hover:bg-blue-200"
+                class="inline-flex ml-2 px-3 py-1.5 text-sm font-semibold text-blue-600 bg-blue-100 rounded-md hover:bg-blue-200"
               >
                 Today
               </button>
@@ -927,10 +934,11 @@
             >
             <p class="text-xs text-gray-500 mt-1">
               Customise the message copied when you click "Draft Message". Use
-              <code class="bg-gray-100 px-1 rounded text-blue-700">{cover}</code
+              <code class="bg-gray-100 px-1 rounded text-blue-700"
+                >{reliefTeacher}</code
               >,
               <code class="bg-gray-100 px-1 rounded text-blue-700"
-                >{original}</code
+                >{absentTeacher}</code
               >,
               <code class="bg-gray-100 px-1 rounded text-blue-700">{class}</code
               >,
@@ -1157,7 +1165,7 @@
         };
 
         const DEFAULT_MESSAGE_TEMPLATE =
-          "Dear {cover},\n\nWe would like to seek your assistance with the following relief duty for {original} on {date}.\n\nClass: {class}\nPeriod(s): {period}\nTime: {time}\nDetails: [Please add any further details here]\n\nDo let us know if you require further clarifications or have any concerns. Thank you!\n\n---\n\nDear {original},\n\nThis is to inform you that {cover} will be covering your lesson on {date} for the class mentioned above.\n\nThank you.";
+          "Dear {reliefTeacher},\n\nWe would like to seek your assistance with the following relief duty for {absentTeacher} on {date}.\n\nClass: {class}\nPeriod(s): {period}\nTime: {time}\nDetails: [Please add any further details here]\n\nDo let us know if you require further clarifications or have any concerns. Thank you!\n\n---\n\nDear {absentTeacher},\n\nThis is to inform you that {reliefTeacher} will be covering your lesson on {date} for the class mentioned above.\n\nThank you.";
         let messageTemplate = DEFAULT_MESSAGE_TEMPLATE;
         const draftMessageMap = new Map();
 
@@ -1247,7 +1255,9 @@
             };
           }
           if (data.messageTemplate) {
-            messageTemplate = data.messageTemplate;
+            messageTemplate = data.messageTemplate
+              .replace(/\{cover\}/g, "{reliefTeacher}")
+              .replace(/\{original\}/g, "{absentTeacher}");
           }
           initializeAppUI();
         };
@@ -1644,7 +1654,7 @@
 
             container.innerHTML = `
                         <div class="table-scroll overflow-x-auto">
-                            <table class="border-collapse">
+                            <table class="border-collapse" style="table-layout:fixed;">
                                 <thead><tr><th class="sticky top-0 left-0 bg-gray-50 z-20 p-1 md:p-2 border text-xs md:text-sm whitespace-nowrap sticky-corner">Teacher</th>${headerHtml}</tr></thead>
                                 <tbody>${bodyHtml}</tbody>
                             </table>
@@ -2573,8 +2583,8 @@
               const data = draftMessageMap.get(e.target.dataset.msgKey);
               if (!data) return;
               const message = messageTemplate
-                .replace(/\{cover\}/g, data.cover)
-                .replace(/\{original\}/g, data.original)
+                .replace(/\{reliefTeacher\}/g, data.cover)
+                .replace(/\{absentTeacher\}/g, data.original)
                 .replace(/\{class\}/g, data.class)
                 .replace(/\{period\}/g, data.period)
                 .replace(/\{time\}/g, data.time)

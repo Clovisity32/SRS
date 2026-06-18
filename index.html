@@ -917,9 +917,9 @@
     <!-- Settings Modal -->
     <div
       id="settingsModal"
-      class="modal w-full max-w-lg bg-white rounded-xl shadow-2xl"
+      class="modal w-full max-w-lg bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]"
     >
-      <div class="p-6">
+      <div class="px-6 pt-6 flex-shrink-0">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-xl font-semibold">Settings</h3>
           <button
@@ -929,338 +929,329 @@
             &times;
           </button>
         </div>
-        <div class="space-y-6 overflow-y-auto max-h-[75vh] pr-1">
-          <!-- Access Control — rendered by renderAccessControlUI(), shown to admins only -->
-          <div id="accessControlSection" class="hidden">
-            <label class="block text-sm font-medium text-gray-700"
-              >Access Control</label
-            >
-            <p class="text-xs text-gray-500 mt-1">
-              Add Google email addresses, then click
-              <strong>Save &amp; Close</strong>. Admins can change settings;
-              Coordinators can only assign relief.
-            </p>
-            <div
-              id="allowedUsersList"
-              class="mt-2 mb-3 space-y-1 max-h-36 overflow-y-auto border rounded p-2"
-            ></div>
-            <div class="flex gap-2 items-center flex-wrap">
-              <input
-                type="email"
-                id="newUserEmail"
-                placeholder="colleague@school.edu"
-                class="flex-1 min-w-[10rem] text-sm border border-gray-300 rounded-md px-2 py-1"
-              />
-              <select
-                id="newUserRole"
-                class="text-sm border border-gray-300 rounded-md px-2 py-1"
-              >
-                <option value="coordinator">Coordinator</option>
-                <option value="admin">Admin</option>
-              </select>
-              <button
-                id="addUserBtn"
-                class="text-sm bg-blue-600 text-white font-semibold px-3 py-1 rounded-md hover:bg-blue-700"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-          <div class="border-t pt-4">
-            <label class="block text-sm font-medium text-gray-700"
-              >Import Timetable</label
-            >
-            <p class="text-xs text-gray-500 mt-1">
-              Upload the aSc Timetables PDF directly, or upload a CSV. Need the
-              CSV template?
-              <a
-                href="#"
-                id="downloadTemplateLink"
-                class="text-blue-600 hover:underline"
-                >Download it here</a
-              >.
-            </p>
+      </div>
+      <div class="space-y-6 overflow-y-auto flex-1 min-h-0 px-6 pb-4">
+        <!-- Access Control — rendered by renderAccessControlUI(), shown to admins only -->
+        <div id="accessControlSection" class="hidden">
+          <label class="block text-sm font-medium text-gray-700"
+            >Access Control</label
+          >
+          <p class="text-xs text-gray-500 mt-1">
+            Add Google email addresses, then click
+            <strong>Save &amp; Close</strong>. Admins can change settings;
+            Coordinators can only assign relief.
+          </p>
+          <div
+            id="allowedUsersList"
+            class="mt-2 mb-3 space-y-1 max-h-36 overflow-y-auto border rounded p-2"
+          ></div>
+          <div class="flex gap-2 items-center flex-wrap">
             <input
-              type="file"
-              id="fileUploader"
-              class="hidden"
-              accept=".pdf,.csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              type="email"
+              id="newUserEmail"
+              placeholder="colleague@school.edu"
+              class="flex-1 min-w-[10rem] text-sm border border-gray-300 rounded-md px-2 py-1"
             />
+            <select
+              id="newUserRole"
+              class="text-sm border border-gray-300 rounded-md px-2 py-1"
+            >
+              <option value="coordinator">Coordinator</option>
+              <option value="admin">Admin</option>
+            </select>
             <button
-              id="uploadBtn"
-              class="mt-2 w-full flex justify-center items-center px-4 py-2 border border-dashed border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+              id="addUserBtn"
+              class="text-sm bg-blue-600 text-white font-semibold px-3 py-1 rounded-md hover:bg-blue-700"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5 mr-2 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              <span id="uploadBtnText">Upload PDF or CSV Timetable</span>
-            </button>
-          </div>
-          <!-- Period Settings -->
-          <div class="border-t pt-6">
-            <label class="block text-sm font-medium text-gray-700"
-              >Period Settings</label
-            >
-            <p class="text-xs text-gray-500 mt-1">
-              Set start time, duration, and number of periods per day.
-              <strong
-                >Changing these requires re-importing your timetable.</strong
-              >
-            </p>
-            <div class="grid grid-cols-3 gap-3 mt-2">
-              <div>
-                <label
-                  for="periodStartTime"
-                  class="block text-xs font-medium text-gray-600"
-                  >Start Time</label
-                >
-                <input
-                  type="time"
-                  id="periodStartTime"
-                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-sm px-2 py-1"
-                />
-              </div>
-              <div>
-                <label
-                  for="periodDuration"
-                  class="block text-xs font-medium text-gray-600"
-                  >Duration (min)</label
-                >
-                <input
-                  type="number"
-                  id="periodDuration"
-                  min="5"
-                  max="120"
-                  step="5"
-                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-sm px-2 py-1"
-                />
-              </div>
-              <div>
-                <label
-                  for="periodCount"
-                  class="block text-xs font-medium text-gray-600"
-                  >No. of Periods</label
-                >
-                <input
-                  type="number"
-                  id="periodCount"
-                  min="1"
-                  max="30"
-                  class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-sm px-2 py-1"
-                />
-              </div>
-            </div>
-            <p
-              id="periodPreview"
-              class="mt-2 text-xs text-blue-700 font-mono bg-blue-50 p-2 rounded"
-            ></p>
-          </div>
-
-          <!-- Subject Equivalence Groups -->
-          <div class="border-t pt-6">
-            <label class="block text-sm font-medium text-gray-700"
-              >Subject Equivalence Groups</label
-            >
-            <p class="text-xs text-gray-500 mt-1">
-              Teachers whose subjects overlap with a group qualify as
-              <strong>Tier 2</strong> for any subject in that group. E.g.
-              "Physics, Pure Physics" means a Physics teacher can cover Pure
-              Physics relief and vice versa.
-            </p>
-            <div
-              id="subjectGroupsList"
-              class="mt-2 mb-3 space-y-1 max-h-36 overflow-y-auto border rounded p-2"
-            ></div>
-            <div class="flex gap-2 items-center">
-              <input
-                type="text"
-                id="newGroupInput"
-                placeholder="Physics, Pure Physics"
-                class="flex-1 text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-              <button
-                id="addGroupBtn"
-                class="text-sm bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-md hover:bg-blue-700"
-              >
-                Add
-              </button>
-            </div>
-            <p class="text-xs text-gray-400 mt-1">
-              Enter subjects separated by commas. Minimum 2 subjects per group.
-            </p>
-          </div>
-
-          <!-- Department Management -->
-          <div class="border-t pt-6">
-            <label class="block text-sm font-medium text-gray-700"
-              >Departments</label
-            >
-            <p class="text-xs text-gray-500 mt-1">
-              Define departments and assign teachers to them. Use the department
-              filter in the header to view one department at a time.
-            </p>
-            <div
-              id="departmentList"
-              class="mt-2 mb-3 space-y-1 max-h-28 overflow-y-auto border rounded p-2"
-            ></div>
-            <div class="flex gap-2 items-center mb-4">
-              <input
-                type="text"
-                id="newDeptInput"
-                placeholder="e.g. Science"
-                class="flex-1 text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-              <button
-                id="addDeptBtn"
-                class="text-sm bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-md hover:bg-blue-700"
-              >
-                Add
-              </button>
-            </div>
-            <label class="block text-xs font-medium text-gray-600 mb-1"
-              >Teacher Assignments</label
-            >
-            <div class="max-h-48 overflow-y-auto border rounded">
-              <table class="w-full text-sm">
-                <thead class="bg-gray-50 sticky top-0">
-                  <tr>
-                    <th
-                      class="py-1 px-2 text-left text-xs font-medium text-gray-500"
-                    >
-                      Teacher
-                    </th>
-                    <th
-                      class="py-1 px-2 text-left text-xs font-medium text-gray-500"
-                    >
-                      Department
-                    </th>
-                    <th
-                      class="py-1 px-2 text-left text-xs font-medium text-gray-500"
-                    >
-                      Email
-                    </th>
-                  </tr>
-                </thead>
-                <tbody id="teacherDeptTable"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="border-t pt-6">
-            <label class="block text-sm font-medium text-gray-700"
-              >Term Start Dates</label
-            >
-            <p class="text-xs text-gray-500 mt-1">
-              Set the start date for Week 1 of each term. Weeks will alternate
-              between Odd and Even from these dates.
-            </p>
-            <div class="grid grid-cols-2 gap-4 mt-2">
-              <div>
-                <label
-                  for="term1"
-                  class="block text-xs font-medium text-gray-600"
-                  >Term 1 (Odd)</label
-                >
-                <input
-                  type="date"
-                  id="term1"
-                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm"
-                />
-              </div>
-              <div>
-                <label
-                  for="term2"
-                  class="block text-xs font-medium text-gray-600"
-                  >Term 2 (Odd)</label
-                >
-                <input
-                  type="date"
-                  id="term2"
-                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm"
-                />
-              </div>
-              <div>
-                <label
-                  for="term3"
-                  class="block text-xs font-medium text-gray-600"
-                  >Term 3 (Odd)</label
-                >
-                <input
-                  type="date"
-                  id="term3"
-                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm"
-                />
-              </div>
-              <div>
-                <label
-                  for="term4"
-                  class="block text-xs font-medium text-gray-600"
-                  >Term 4 (Odd)</label
-                >
-                <input
-                  type="date"
-                  id="term4"
-                  class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm"
-                />
-              </div>
-            </div>
-          </div>
-          <!-- Message Template -->
-          <div class="border-t pt-6">
-            <label class="block text-sm font-medium text-gray-700"
-              >Message Template</label
-            >
-            <p class="text-xs text-gray-500 mt-1">
-              Customise the message copied when you click "Draft Message". Use
-              <code class="bg-gray-100 px-1 rounded text-blue-700"
-                >{reliefTeacher}</code
-              >,
-              <code class="bg-gray-100 px-1 rounded text-blue-700"
-                >{absentTeacher}</code
-              >,
-              <code class="bg-gray-100 px-1 rounded text-blue-700">{class}</code
-              >,
-              <code class="bg-gray-100 px-1 rounded text-blue-700"
-                >{period}</code
-              >,
-              <code class="bg-gray-100 px-1 rounded text-blue-700">{time}</code
-              >,
-              <code class="bg-gray-100 px-1 rounded text-blue-700">{date}</code>
-              as placeholders.
-            </p>
-            <textarea
-              id="messageTemplateInput"
-              rows="8"
-              class="mt-2 block w-full border border-gray-300 rounded-md shadow-sm text-xs p-2 font-mono resize-y focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter your custom message template..."
-            ></textarea>
-            <button
-              id="resetTemplateBtn"
-              class="mt-1 text-xs text-blue-600 hover:underline"
-            >
-              Reset to default
+              Add
             </button>
           </div>
         </div>
-        <div class="mt-6 flex justify-end">
-          <button
-            id="saveSettingsBtn"
-            class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300"
+        <div class="border-t pt-4">
+          <label class="block text-sm font-medium text-gray-700"
+            >Import Timetable</label
           >
-            Save & Close
+          <p class="text-xs text-gray-500 mt-1">
+            Upload the aSc Timetables PDF directly, or upload a CSV. Need the
+            CSV template?
+            <a
+              href="#"
+              id="downloadTemplateLink"
+              class="text-blue-600 hover:underline"
+              >Download it here</a
+            >.
+          </p>
+          <input
+            type="file"
+            id="fileUploader"
+            class="hidden"
+            accept=".pdf,.csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+          />
+          <button
+            id="uploadBtn"
+            class="mt-2 w-full flex justify-center items-center px-4 py-2 border border-dashed border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 mr-2 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              />
+            </svg>
+            <span id="uploadBtnText">Upload PDF or CSV Timetable</span>
           </button>
         </div>
+        <!-- Period Settings -->
+        <div class="border-t pt-6">
+          <label class="block text-sm font-medium text-gray-700"
+            >Period Settings</label
+          >
+          <p class="text-xs text-gray-500 mt-1">
+            Set start time, duration, and number of periods per day.
+            <strong
+              >Changing these requires re-importing your timetable.</strong
+            >
+          </p>
+          <div class="grid grid-cols-3 gap-3 mt-2">
+            <div>
+              <label
+                for="periodStartTime"
+                class="block text-xs font-medium text-gray-600"
+                >Start Time</label
+              >
+              <input
+                type="time"
+                id="periodStartTime"
+                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-sm px-2 py-1"
+              />
+            </div>
+            <div>
+              <label
+                for="periodDuration"
+                class="block text-xs font-medium text-gray-600"
+                >Duration (min)</label
+              >
+              <input
+                type="number"
+                id="periodDuration"
+                min="5"
+                max="120"
+                step="5"
+                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-sm px-2 py-1"
+              />
+            </div>
+            <div>
+              <label
+                for="periodCount"
+                class="block text-xs font-medium text-gray-600"
+                >No. of Periods</label
+              >
+              <input
+                type="number"
+                id="periodCount"
+                min="1"
+                max="30"
+                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm text-sm px-2 py-1"
+              />
+            </div>
+          </div>
+          <p
+            id="periodPreview"
+            class="mt-2 text-xs text-blue-700 font-mono bg-blue-50 p-2 rounded"
+          ></p>
+        </div>
+
+        <!-- Subject Equivalence Groups -->
+        <div class="border-t pt-6">
+          <label class="block text-sm font-medium text-gray-700"
+            >Subject Equivalence Groups</label
+          >
+          <p class="text-xs text-gray-500 mt-1">
+            Teachers whose subjects overlap with a group qualify as
+            <strong>Tier 2</strong> for any subject in that group. E.g.
+            "Physics, Pure Physics" means a Physics teacher can cover Pure
+            Physics relief and vice versa.
+          </p>
+          <div
+            id="subjectGroupsList"
+            class="mt-2 mb-3 space-y-1 max-h-36 overflow-y-auto border rounded p-2"
+          ></div>
+          <div class="flex gap-2 items-center">
+            <input
+              type="text"
+              id="newGroupInput"
+              placeholder="Physics, Pure Physics"
+              class="flex-1 text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              id="addGroupBtn"
+              class="text-sm bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-md hover:bg-blue-700"
+            >
+              Add
+            </button>
+          </div>
+          <p class="text-xs text-gray-400 mt-1">
+            Enter subjects separated by commas. Minimum 2 subjects per group.
+          </p>
+        </div>
+
+        <!-- Department Management -->
+        <div class="border-t pt-6">
+          <label class="block text-sm font-medium text-gray-700"
+            >Departments</label
+          >
+          <p class="text-xs text-gray-500 mt-1">
+            Define departments and assign teachers to them. Use the department
+            filter in the header to view one department at a time.
+          </p>
+          <div
+            id="departmentList"
+            class="mt-2 mb-3 space-y-1 max-h-28 overflow-y-auto border rounded p-2"
+          ></div>
+          <div class="flex gap-2 items-center mb-4">
+            <input
+              type="text"
+              id="newDeptInput"
+              placeholder="e.g. Science"
+              class="flex-1 text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              id="addDeptBtn"
+              class="text-sm bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-md hover:bg-blue-700"
+            >
+              Add
+            </button>
+          </div>
+          <label class="block text-xs font-medium text-gray-600 mb-1"
+            >Teacher Assignments</label
+          >
+          <div class="max-h-48 overflow-y-auto border rounded">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 sticky top-0">
+                <tr>
+                  <th
+                    class="py-1 px-2 text-left text-xs font-medium text-gray-500"
+                  >
+                    Teacher
+                  </th>
+                  <th
+                    class="py-1 px-2 text-left text-xs font-medium text-gray-500"
+                  >
+                    Department
+                  </th>
+                  <th
+                    class="py-1 px-2 text-left text-xs font-medium text-gray-500"
+                  >
+                    Email
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="teacherDeptTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="border-t pt-6">
+          <label class="block text-sm font-medium text-gray-700"
+            >Term Start Dates</label
+          >
+          <p class="text-xs text-gray-500 mt-1">
+            Set the start date for Week 1 of each term. Weeks will alternate
+            between Odd and Even from these dates.
+          </p>
+          <div class="grid grid-cols-2 gap-4 mt-2">
+            <div>
+              <label for="term1" class="block text-xs font-medium text-gray-600"
+                >Term 1 (Odd)</label
+              >
+              <input
+                type="date"
+                id="term1"
+                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm"
+              />
+            </div>
+            <div>
+              <label for="term2" class="block text-xs font-medium text-gray-600"
+                >Term 2 (Odd)</label
+              >
+              <input
+                type="date"
+                id="term2"
+                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm"
+              />
+            </div>
+            <div>
+              <label for="term3" class="block text-xs font-medium text-gray-600"
+                >Term 3 (Odd)</label
+              >
+              <input
+                type="date"
+                id="term3"
+                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm"
+              />
+            </div>
+            <div>
+              <label for="term4" class="block text-xs font-medium text-gray-600"
+                >Term 4 (Odd)</label
+              >
+              <input
+                type="date"
+                id="term4"
+                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm text-sm"
+              />
+            </div>
+          </div>
+        </div>
+        <!-- Message Template -->
+        <div class="border-t pt-6">
+          <label class="block text-sm font-medium text-gray-700"
+            >Message Template</label
+          >
+          <p class="text-xs text-gray-500 mt-1">
+            Customise the message copied when you click "Draft Message". Use
+            <code class="bg-gray-100 px-1 rounded text-blue-700"
+              >{reliefTeacher}</code
+            >,
+            <code class="bg-gray-100 px-1 rounded text-blue-700"
+              >{absentTeacher}</code
+            >,
+            <code class="bg-gray-100 px-1 rounded text-blue-700">{class}</code>,
+            <code class="bg-gray-100 px-1 rounded text-blue-700">{period}</code
+            >,
+            <code class="bg-gray-100 px-1 rounded text-blue-700">{time}</code>,
+            <code class="bg-gray-100 px-1 rounded text-blue-700">{date}</code>
+            as placeholders.
+          </p>
+          <textarea
+            id="messageTemplateInput"
+            rows="8"
+            class="mt-2 block w-full border border-gray-300 rounded-md shadow-sm text-xs p-2 font-mono resize-y focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Enter your custom message template..."
+          ></textarea>
+          <button
+            id="resetTemplateBtn"
+            class="mt-1 text-xs text-blue-600 hover:underline"
+          >
+            Reset to default
+          </button>
+        </div>
+      </div>
+      <div
+        class="px-6 pb-6 pt-4 flex justify-end flex-shrink-0 border-t border-gray-100"
+      >
+        <button
+          id="saveSettingsBtn"
+          class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300"
+        >
+          Save & Close
+        </button>
       </div>
     </div>
 
@@ -1308,13 +1299,28 @@
           const db = getFirestore(app);
           const auth = getAuth(app);
 
-          // Handle redirect result first (covers incognito / popup-blocked fallback).
-          // getRedirectResult resolves immediately with null when no redirect is pending.
-          getRedirectResult(auth).catch((err) => {
-            const el = document.getElementById("loginError");
-            el.textContent = `Sign-in failed: ${err?.message || "unknown error"}`;
-            el.classList.remove("hidden");
-          });
+          // Track whether this page load is returning from a redirect sign-in.
+          // Only show getRedirectResult errors when we know we initiated a redirect —
+          // in incognito, Firebase sometimes rejects getRedirectResult due to storage
+          // access restrictions even when no redirect was ever started, producing a
+          // spurious "firebase error" on the login screen.
+          const REDIRECT_KEY = "srs_signin_redirect_pending";
+
+          getRedirectResult(auth)
+            .then(() => {
+              sessionStorage.removeItem(REDIRECT_KEY);
+            })
+            .catch((err) => {
+              const wasPending = sessionStorage.getItem(REDIRECT_KEY);
+              sessionStorage.removeItem(REDIRECT_KEY);
+              if (wasPending) {
+                // Redirect was initiated but failed — show the error.
+                const el = document.getElementById("loginError");
+                el.textContent = `Sign-in failed: ${err?.message || "unknown error"}`;
+                el.classList.remove("hidden");
+              }
+              // No redirect pending — storage/init error unrelated to user action, ignore.
+            });
 
           onAuthStateChanged(auth, (user) => {
             if (user) {
@@ -1334,6 +1340,12 @@
                 loginError.classList.add("hidden");
 
                 signInWithPopup(auth, provider).catch((err) => {
+                  if (err?.code === "auth/web-storage-unsupported") {
+                    loginError.textContent =
+                      "Sign-in is blocked because browser storage is disabled. Enable cookies/storage in your privacy settings and try again.";
+                    loginError.classList.remove("hidden");
+                    return;
+                  }
                   // Popup blocked or third-party cookie restriction (common in incognito)
                   // → fall back to full-page redirect which always works.
                   const redirectCodes = [
@@ -1343,6 +1355,7 @@
                     "auth/internal-error",
                   ];
                   if (redirectCodes.includes(err?.code)) {
+                    sessionStorage.setItem(REDIRECT_KEY, "1");
                     signInWithRedirect(auth, provider);
                   } else {
                     loginError.textContent = `Sign-in failed: ${err?.message || "Please try again."}`;

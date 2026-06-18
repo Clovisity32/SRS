@@ -97,6 +97,14 @@
         transform: translate(-50%, -50%);
         z-index: 50;
       }
+      /* Settings modal uses flex layout — applied via CSS so it doesn't
+         conflict with the Tailwind flex utility (which would override
+         .modal { display: none } and make the modal always visible). */
+      #settingsModal {
+        flex-direction: column;
+        overflow: hidden;
+        max-height: 90vh;
+      }
       .rationale-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -917,7 +925,7 @@
     <!-- Settings Modal -->
     <div
       id="settingsModal"
-      class="modal w-full max-w-lg bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]"
+      class="modal w-full max-w-lg bg-white rounded-xl shadow-2xl"
     >
       <div class="px-6 pt-6 flex-shrink-0">
         <div class="flex justify-between items-center mb-4">
@@ -1548,7 +1556,8 @@
 
         const openModal = (modal) => {
           modalBackdrop.style.display = "block";
-          modal.style.display = "block";
+          // settingsModal uses flex layout (set in CSS); other modals use block.
+          modal.style.display = modal.id === "settingsModal" ? "flex" : "block";
         };
         const closeModal = (modal) => {
           modalBackdrop.style.display = "none";

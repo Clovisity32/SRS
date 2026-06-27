@@ -1399,8 +1399,26 @@
           onAuthStateChanged(auth, (user) => {
             if (user) {
               document.getElementById("loginScreen").classList.add("hidden");
+              // onAuthStateChanged re-fires on ID-token refresh (~hourly) and tab
+              // wake. Running setupApp again would create a fresh empty-state scope,
+              // a stacked onSnapshot, and duplicate event handlers — and an
+              // empty-cache listener startup can wipe the cloud doc with mock data.
+              // Only set up once per signed-in user.
+              if (user.uid === setupUid) return;
+              if (setupUid !== null) {
+                // A different account signed in (after sign-out) — reload for a
+                // clean slate rather than stacking another runApp.
+                location.reload();
+                return;
+              }
+              setupUid = user.uid;
               setupApp(db, auth, user);
             } else {
+              setupUid = null;
+              if (appUnsub) {
+                appUnsub();
+                appUnsub = null;
+              }
               document.getElementById("loginScreen").classList.remove("hidden");
               document.getElementById("loadingOverlay").classList.add("hidden");
               document.getElementById("mainContent").classList.add("hidden");
@@ -1468,21 +1486,42 @@
         }
       }
 
+      // Setup guards (module scope): prevent re-running setup on token refresh
+      // and prevent overwriting real data with mock data on offline/cache blips.
+      let appUnsub = null;
+      let setupUid = null;
+      let hasLoadedRealData = false;
+
       function setupApp(db, auth, currentUser) {
         const dataDocRef = doc(db, "app_data", "main");
 
         runApp(db, auth, currentUser);
 
-        onSnapshot(dataDocRef, (docSnap) => {
-          document.getElementById("loadingOverlay").classList.add("hidden");
+        appUnsub = onSnapshot(
+          dataDocRef,
+          (docSnap) => {
+            document.getElementById("loadingOverlay").classList.add("hidden");
 
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            window.loadStateFromFirestore(data);
-          } else {
-            window.initializeAppStateAndSave();
-          }
-        });
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              hasLoadedRealData = true;
+              window.loadStateFromFirestore(data);
+            } else if (!docSnap.metadata.fromCache && !hasLoadedRealData) {
+              // Authoritative server read confirming a genuinely empty project
+              // (true first run) — safe to seed mock data. A "does not exist"
+              // sourced from the local cache (offline / pre-server) is NOT
+              // authoritative and must be ignored, otherwise initializeApp...()
+              // would overwrite the real cloud doc with mock data.
+              window.initializeAppStateAndSave();
+            }
+            // else: cache/offline "missing" blip — ignore, wait for server.
+          },
+          (err) => {
+            document.getElementById("loadingOverlay").classList.add("hidden");
+            console.error("[SRS onSnapshot] FAILED:", err.code, err.message);
+            if (window.showSaveError) window.showSaveError(err);
+          },
+        );
       }
 
       function runApp(db, auth, currentUser) {
@@ -1720,6 +1759,7 @@
           }
         }
 
+        window.showSaveError = showSaveError;
         function showSaveError(e) {
           const msg =
             e?.code === "permission-denied"
@@ -1743,6 +1783,15 @@
         }
 
         window.initializeAppStateAndSave = function () {
+          // Belt-and-suspenders: never overwrite already-populated real data with
+          // mock data. The snapshot handler should already prevent this, but guard
+          // here too so no future caller can wipe the project.
+          if (
+            masterTeachers.length > 0 ||
+            Object.keys(fullTimetable).length > 0
+          ) {
+            return;
+          }
           initializeMockFullTimetable();
           subjectGroups = [
             ["Physics", "Pure Physics"],

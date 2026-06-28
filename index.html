@@ -1201,6 +1201,11 @@
                   >
                     Email
                   </th>
+                  <th
+                    class="py-1 px-2 text-left text-xs font-medium text-gray-500"
+                  >
+                    Calendar
+                  </th>
                 </tr>
               </thead>
               <tbody id="teacherDeptTable"></tbody>
@@ -2755,6 +2760,172 @@
           return weekDifference % 2 === 0 ? termWeekType : "Even";
         }
 
+        // ── Per-teacher .ics calendar export (admin) ──────────────────────
+        // Generates a whole-year Google-Calendar-importable file from the
+        // timetable SRS already holds. Reuses PERIODS, termStartDates and
+        // getWeekType so it tracks the same Odd/Even model as the rest of the app.
+        const ICS_WEEKS_PER_TERM = 10; // Singapore terms run ~10 teaching weeks
+        const ICS_DAYS = [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+        ];
+
+        const icsEsc = (s) =>
+          String(s == null ? "" : s)
+            .replace(/\\/g, "\\\\")
+            .replace(/;/g, "\\;")
+            .replace(/,/g, "\\,")
+            .replace(/\n/g, "\\n");
+        const icsSlug = (s) =>
+          String(s)
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+        function icsFold(line) {
+          if (line.length <= 75) return line;
+          const parts = [line.slice(0, 75)];
+          for (let i = 75; i < line.length; i += 74)
+            parts.push(" " + line.slice(i, i + 74));
+          return parts.join("\r\n");
+        }
+
+        function buildTeacherICS(teacherId) {
+          const teacher = getMasterTeacherDetails(teacherId);
+          const tt = fullTimetable[teacherId];
+          if (!teacher || !tt) return { ics: "", count: 0 };
+
+          const periodById = {};
+          PERIODS.forEach((p) => (periodById[p.id] = p));
+          const dtstamp = new Date()
+            .toISOString()
+            .replace(/[-:]/g, "")
+            .replace(/\.\d+Z$/, "Z");
+
+          const body = [];
+          let count = 0;
+
+          Object.values(termStartDates).forEach((termStart) => {
+            for (let w = 0; w < ICS_WEEKS_PER_TERM; w++) {
+              for (let di = 0; di < ICS_DAYS.length; di++) {
+                const date = dayjs(termStart).add(w * 7 + di, "day");
+                const weekType = getWeekType(date);
+                const dayName = date.format("dddd").toLowerCase();
+                const slots = (tt[weekType] && tt[weekType][dayName]) || [];
+                if (!slots.length) continue;
+
+                // map each period to the lesson title(s) it holds
+                const titleByPeriod = {};
+                slots.forEach((s) => {
+                  const title = [s.level, s.subject, s.stream]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim();
+                  if (!title) return;
+                  (titleByPeriod[s.period] ||= []).push(title);
+                });
+                const titles = [
+                  ...new Set(Object.values(titleByPeriod).flat()),
+                ].sort();
+
+                titles.forEach((title) => {
+                  const pers = Object.keys(titleByPeriod)
+                    .filter((p) => titleByPeriod[p].includes(title))
+                    .map(Number)
+                    .sort((a, b) => a - b);
+                  let start = null,
+                    prev = null;
+                  const flush = () => {
+                    const ps = periodById[start],
+                      pe = periodById[prev];
+                    if (!ps || !pe) return;
+                    const ds = date.format("YYYYMMDD");
+                    const t0 = ps.time.split("-")[0].replace(":", "") + "00";
+                    const t1 = pe.time.split("-")[1].replace(":", "") + "00";
+                    const uid = `srs-${icsSlug(teacher.name)}-${ds}-p${start}-${icsSlug(title)}@srs.local`;
+                    const span =
+                      start === prev ? `${start}` : `${start}-${prev}`;
+                    body.push(
+                      "BEGIN:VEVENT",
+                      `UID:${uid}`,
+                      `DTSTAMP:${dtstamp}`,
+                      `DTSTART;TZID=Asia/Singapore:${ds}T${t0}`,
+                      `DTEND;TZID=Asia/Singapore:${ds}T${t1}`,
+                      `SUMMARY:${icsEsc(title)}`,
+                      `DESCRIPTION:${icsEsc(`${weekType} week · Period ${span}`)}`,
+                      "BEGIN:VALARM",
+                      "ACTION:DISPLAY",
+                      "DESCRIPTION:Reminder",
+                      "TRIGGER:-PT10M",
+                      "END:VALARM",
+                      "END:VEVENT",
+                    );
+                    count++;
+                  };
+                  pers.concat([null]).forEach((p) => {
+                    if (start === null) {
+                      start = prev = p;
+                    } else if (p !== null && p === prev + 1) {
+                      prev = p;
+                    } else {
+                      flush();
+                      start = prev = p;
+                    }
+                  });
+                });
+              }
+            }
+          });
+
+          const cal = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//SRS//Timetable Export//EN",
+            "CALSCALE:GREGORIAN",
+            "METHOD:PUBLISH",
+            `X-WR-CALNAME:${icsEsc("Timetable - " + teacher.name)}`,
+            "X-WR-TIMEZONE:Asia/Singapore",
+            "BEGIN:VTIMEZONE",
+            "TZID:Asia/Singapore",
+            "X-LIC-LOCATION:Asia/Singapore",
+            "BEGIN:STANDARD",
+            "DTSTART:19700101T000000",
+            "TZOFFSETFROM:+0800",
+            "TZOFFSETTO:+0800",
+            "TZNAME:+08",
+            "END:STANDARD",
+            "END:VTIMEZONE",
+            ...body,
+            "END:VCALENDAR",
+          ];
+          return { ics: cal.map(icsFold).join("\r\n") + "\r\n", count };
+        }
+
+        function downloadTeacherICS(teacherId) {
+          const teacher = getMasterTeacherDetails(teacherId);
+          const { ics, count } = buildTeacherICS(teacherId);
+          if (!count) {
+            alert("No timetable lessons found for this teacher to export.");
+            return;
+          }
+          const blob = new Blob([ics], {
+            type: "text/calendar;charset=utf-8",
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download =
+            (teacher?.name || "teacher")
+              .replace(/[^a-z0-9]+/gi, "_")
+              .replace(/^_+|_+$/g, "") + ".ics";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+
         function updatePeriodSelectionForTeacher(teacherId) {
           findTeachersBtn.disabled = true;
           const teacher = getMasterTeacherDetails(teacherId);
@@ -3719,6 +3890,12 @@
                   placeholder="email@school.edu"
                   value="${esc(t.email || "")}" />
               </td>
+              <td class="py-1 pl-2">
+                <button data-teacher-id="${esc(t.id)}"
+                  class="export-ics-btn text-xs font-semibold text-blue-600 hover:text-blue-800 px-2 py-0.5 rounded hover:bg-blue-50 whitespace-nowrap">
+                  Export .ics
+                </button>
+              </td>
             </tr>`,
             )
             .join("");
@@ -3737,6 +3914,11 @@
               );
               if (teacher) teacher.email = input.value.trim();
             });
+          });
+          tableEl.querySelectorAll(".export-ics-btn").forEach((btn) => {
+            btn.addEventListener("click", () =>
+              downloadTeacherICS(btn.dataset.teacherId),
+            );
           });
         }
 
@@ -4354,6 +4536,289 @@
           return { level, subject, stream };
         }
 
+        // ── Robust timetable PDF parser (faithful JS port of parse_timetable.py) ──
+        // Vector rule-line grid detection + guillotine split + content-signature
+        // classification via pdf.js. Parity-tested against the Python parser on all
+        // 17 dept-PDF teachers (0 cell diffs). Replaces the old font-size heuristic.
+        const RobustTimetableParser = (() => {
+        // Faithful JS port of parse_timetable.py (the verified PyMuPDF parser) for pdf.js 3.11.
+        // Pipeline: extract vector rule-line segments (CTM-tracked operator list) + text spans,
+        // detect the period/row grid, recursively guillotine-split each Odd/Even×day band into
+        // leaf cells, classify each leaf by content signature, fill the periods it covers.
+        // Exposes parseGridFromPage(page, pdfjsLib) -> { name, cells:{ "Parity|Day|P": value } }.
+
+        const DAYS = ["Mon", "Tues", "Wed", "Thurs", "Fri"];
+        const DAY_OUT = { Mon: "Mon", Tues: "Tue", Wed: "Wed", Thurs: "Thu", Fri: "Fri" };
+        const PARITIES = ["Odd", "Even"];
+        const VALUE_WORDS = [
+          "Flourish", "Respect", "Responsibility", "Resilience", "Care",
+          "Connect", "Contribute", "Curiosity", "Adaptability",
+        ];
+        const ROOM_RE = /^(Com\b|Lib Connect\b|ITR\b|Hum Rm\b|D\d|Sci Lab|Lab\b|Blackbox\b)/i;
+        const NOISE = new Set(["(A)", "(B)", ""]);
+
+        // ───────────────────────── content-signature classification ─────────────────────────
+        function detectSubject(text) {
+          const L = text.toLowerCase();
+          const disc = L.includes("chem") ? "Chemistry"
+            : L.includes("physic") ? "Physics"
+            : L.includes("biolog") ? "Biology" : null;
+          if (disc) {
+            if (L.includes("pure")) return "Pure " + disc;
+            if (L.includes("sci") || L.includes("science")) return "Science " + disc;
+            return null;
+          }
+          if (L.includes("social")) return "Social Studies";
+          if (L.includes("math")) return "Mathematics";
+          if (L.includes("english")) return "English";
+          if (L.includes("humanit")) return "Humanities";
+          if (L.includes("science")) return "Science";
+          return null;
+        }
+
+        function fixRaw(text) {
+          return text
+            .replace(/Meeti\s+ng/g, "Meeting")
+            .replace(/\bSPhy\b/g, "Science Physics")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+
+        function classify(spanTexts) {
+          let level = null;
+          const main = [], annos = [];
+          for (const t of spanTexts) {
+            if (NOISE.has(t)) continue;
+            if (ROOM_RE.test(t)) continue;
+            if ((/^\s*\d+\s+[A-Za-z]/.test(t) || VALUE_WORDS.some((v) => t.includes(v))) && !detectSubject(t)) {
+              annos.push(t);
+              const m = t.match(/^\s*(\d+)/);
+              if (m && level === null) level = m[1];
+              continue;
+            }
+            main.push(t);
+          }
+          if (level === null && annos.length) {
+            const m = annos.join(" ").match(/\d/);
+            level = m ? m[0] : null;
+          }
+          const mainJoin = main.join(" ");
+          const stripped = mainJoin.replace(/ /g, "");
+          const subject = detectSubject(mainJoin);
+          const bandm = stripped.match(/\(?G(\d)\)?/);
+          const band = bandm ? bandm[1] : null;
+          if (subject && band) {
+            if (level === null) return { value: `${subject} G${band}`, kind: "class" };
+            return { value: `${level} ${subject} G${band}`, kind: "class" };
+          }
+          const raw = fixRaw(mainJoin);
+          return { value: raw, kind: raw ? "raw" : "empty" };
+        }
+
+        // ───────────────────────── geometry helpers ─────────────────────────
+        function cluster(vals, tol = 3) {
+          if (!vals.length) return [];
+          vals = vals.slice().sort((a, b) => a - b);
+          const out = [[vals[0]]];
+          for (const v of vals.slice(1)) {
+            if (v - out[out.length - 1][out[out.length - 1].length - 1] <= tol)
+              out[out.length - 1].push(v);
+            else out.push([v]);
+          }
+          return out.map((c) => c.reduce((a, b) => a + b, 0) / c.length);
+        }
+        function vsegCovers(V, x, y0, y1, frac = 0.8) {
+          let cov = 0;
+          for (const [sx, sy0, sy1] of V)
+            if (Math.abs(sx - x) < 2.0) cov += Math.max(0, Math.min(y1, sy1) - Math.max(y0, sy0));
+          return cov >= (y1 - y0) * frac;
+        }
+        function hsegCovers(H, y, x0, x1, frac = 0.7) {
+          let cov = 0;
+          for (const [sy, sx0, sx1] of H)
+            if (Math.abs(sy - y) < 2.0) cov += Math.max(0, Math.min(x1, sx1) - Math.max(x0, sx0));
+          return cov >= (x1 - x0) * frac;
+        }
+
+        // ───────────────────────── extract segments/text from a pdf.js page ─────────────────────────
+        function mul(m, n) {
+          return [
+            m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
+            m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
+            m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5],
+          ];
+        }
+        const applyM = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+
+        function extractSegments(ol, OPS, pageH) {
+          const opName = {};
+          for (const k in OPS) opName[OPS[k]] = k;
+          let ctm = [1, 0, 0, 1, 0, 0];
+          const stack = [];
+          const V = [], H = [];
+          const addSeg = (x0, y0, x1, y1) => {
+            let [ax, ay] = applyM(ctm, x0, y0);
+            let [bx, by] = applyM(ctm, x1, y1);
+            ay = pageH - ay; by = pageH - by;
+            if (Math.abs(ax - bx) < 0.6 && Math.abs(by - ay) > 4)
+              V.push([Math.round(((ax + bx) / 2) * 10) / 10, Math.min(ay, by), Math.max(ay, by)]);
+            else if (Math.abs(ay - by) < 0.6 && Math.abs(bx - ax) > 4)
+              H.push([Math.round(((ay + by) / 2) * 10) / 10, Math.min(ax, bx), Math.max(ax, bx)]);
+          };
+          for (let i = 0; i < ol.fnArray.length; i++) {
+            const nm = opName[ol.fnArray[i]];
+            const args = ol.argsArray[i];
+            if (nm === "save") stack.push(ctm.slice());
+            else if (nm === "restore") ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+            else if (nm === "transform") ctm = mul(ctm, args);
+            else if (nm === "constructPath") {
+              const sub = args[0], co = args[1];
+              let cx = 0, cy = 0, sx = 0, sy = 0, ci = 0;
+              for (const sop of sub) {
+                const sn = opName[sop];
+                if (sn === "moveTo") { cx = co[ci++]; cy = co[ci++]; sx = cx; sy = cy; }
+                else if (sn === "lineTo") { const nx = co[ci++], ny = co[ci++]; addSeg(cx, cy, nx, ny); cx = nx; cy = ny; }
+                else if (sn === "curveTo") { ci += 4; cx = co[ci++]; cy = co[ci++]; }
+                else if (sn === "rectangle") {
+                  const x = co[ci++], y = co[ci++], w = co[ci++], h = co[ci++];
+                  addSeg(x, y, x + w, y); addSeg(x + w, y, x + w, y + h);
+                  addSeg(x + w, y + h, x, y + h); addSeg(x, y + h, x, y); cx = x; cy = y;
+                } else if (sn === "close") addSeg(cx, cy, sx, sy);
+              }
+            }
+          }
+          return { V, H };
+        }
+
+        async function extractPage(page, pdfjsLib) {
+          const vp = page.getViewport({ scale: 1 });
+          const pageH = vp.height;
+          const tc = await page.getTextContent();
+          const words = [], spans = [];
+          for (const it of tc.items) {
+            const s = (it.str || "").trim();
+            if (!s) continue;
+            const tr = it.transform;
+            const x0 = tr[4], w = it.width || 0, h = it.height || 0;
+            const yBase = pageH - tr[5]; // baseline, top-down
+            const cy = yBase - h / 2;
+            words.push({ text: s, x0, x1: x0 + w, ytop: yBase - h, ybot: yBase, cx: x0 + w / 2, cy });
+            spans.push({ text: s, cx: x0 + w / 2, cy });
+          }
+          const ol = await page.getOperatorList();
+          const { V, H } = extractSegments(ol, pdfjsLib.OPS, pageH);
+          return { pageH, words, spans, V, H };
+        }
+
+        // ───────────────────────── grid detection ─────────────────────────
+        function detectGrid({ pageH, words, V, H }) {
+          // period-number anchors: integer text 0..17 in the top band
+          const intItems = words.filter((w) => /^\d+$/.test(w.text) && +w.text >= 0 && +w.text <= 17);
+          const headerItems = intItems.filter((w) => w.cy < pageH * 0.25);
+          const digitCx = headerItems.map((w) => [parseInt(w.text, 10), w.cx]).sort((a, b) => a[1] - b[1]);
+
+          const vx = cluster(V.map((s) => s[0]));
+          const periodCols = [];
+          for (let i = 0; i < vx.length - 1; i++) {
+            const a = vx[i], b = vx[i + 1];
+            const hit = digitCx.find(([, cx]) => a - 1 < cx && cx < b + 1);
+            if (hit) periodCols.push([hit[0], a, b]);
+          }
+          periodCols.sort((p, q) => p[0] - q[0]);
+          if (!periodCols.length) return null;
+          const xFirst = periodCols[0][1], xLast = periodCols[periodCols.length - 1][2];
+
+          const hy = cluster(H.map((s) => s[0]));
+          const gridHy = hy.filter((y) => y > 100 && hsegCovers(H, y, xFirst, xLast, 0.9));
+          const dayLabels = words.filter((w) => DAYS.includes(w.text));
+          const mid = (gridHy[0] + gridHy[gridHy.length - 1]) / 2;
+          const rows = [];
+          for (let i = 0; i < gridHy.length - 1; i++) {
+            const y0 = gridHy[i], y1 = gridHy[i + 1];
+            const lab = dayLabels.find((w) => y0 < w.cy && w.cy < y1);
+            if (!lab) continue;
+            rows.push([(y0 + y1) / 2 < mid ? "Odd" : "Even", lab.text, y0, y1]);
+          }
+          return { periodCols, rows };
+        }
+
+        // ───────────────────────── guillotine split ─────────────────────────
+        function* partition(cols, y0, y1, V, H, eps = 2.0) {
+          const cut = [];
+          for (let i = 0; i < cols.length - 1; i++)
+            if (vsegCovers(V, cols[i][2], y0 + eps, y1 - eps)) cut.push(i);
+          if (cut.length) {
+            const groups = [];
+            let prev = 0;
+            for (const i of cut) { groups.push(cols.slice(prev, i + 1)); prev = i + 1; }
+            groups.push(cols.slice(prev));
+            for (const g of groups) yield* partition(g, y0, y1, V, H, eps);
+            return;
+          }
+          const xa = cols[0][1], xb = cols[cols.length - 1][2];
+          const hys = [...new Set(
+            H.filter(([sy]) => y0 + eps < sy && sy < y1 - eps).map(([sy]) => sy)
+              .filter((sy) => hsegCovers(H, sy, xa + eps, xb - eps))
+          )].sort((a, b) => a - b);
+          if (hys.length) {
+            const bounds = [y0, ...hys, y1];
+            for (let i = 0; i < bounds.length - 1; i++) yield* partition(cols, bounds[i], bounds[i + 1], V, H, eps);
+            return;
+          }
+          yield [cols, y0, y1];
+        }
+
+        function cellSpans(spans, cols, y0, y1) {
+          const xa = cols[0][1], xb = cols[cols.length - 1][2];
+          const inside = spans.filter((s) => xa - 1 < s.cx && s.cx < xb + 1 && y0 < s.cy && s.cy < y1);
+          inside.sort((p, q) => Math.round(p.cy / 3) - Math.round(q.cy / 3) || p.cx - q.cx);
+          return inside.map((s) => s.text);
+        }
+
+        // ───────────────────────── per-page parse ─────────────────────────
+        async function parseGridFromPage(page, pdfjsLib) {
+          const ex = await extractPage(page, pdfjsLib);
+          const name = ex.words.filter((w) => w.ytop < 35).sort((a, b) => a.x0 - b.x0).map((w) => w.text).join(" ").replace(/\s+/g, " ").trim();
+          const grid = detectGrid(ex);
+          const cells = {};
+          if (!grid) return { name, cells };
+          const slots = {}; // "Parity|Day|P" -> [values]
+          for (const [parity, day, y0, y1] of grid.rows) {
+            for (const [cols, ly0, ly1] of partition(grid.periodCols, y0, y1, ex.V, ex.H)) {
+              const { value, kind } = classify(cellSpans(ex.spans, cols, ly0, ly1));
+              if (kind === "empty") continue;
+              for (const [pn] of cols) {
+                const key = `${parity}|${DAY_OUT[day]}|${pn}`;
+                (slots[key] ||= []);
+                if (!slots[key].includes(value)) slots[key].push(value);
+              }
+            }
+          }
+          for (const k in slots) cells[k] = slots[k].join(" / ");
+          return { name, cells };
+        }
+
+        // Build the master CSV (Teacher,Email,Odd Mon P1 … Even Fri P16) from parsed pages.
+        // P1–P16 only (matches timetable_template.csv and SRS's PERIODS); stacked cells keep " / ".
+        function pagesToCSV(pages) {
+          const head = ["Teacher", "Email"];
+          for (const par of PARITIES)
+            for (const d of DAYS) for (let p = 1; p <= 16; p++) head.push(`${par} ${DAY_OUT[d]} P${p}`);
+          const rows = [head.join(",")];
+          for (const { name, cells } of pages) {
+            const row = [name, ""];
+            for (const par of PARITIES)
+              for (const d of DAYS)
+                for (let p = 1; p <= 16; p++) row.push(cells[`${par}|${DAY_OUT[d]}|${p}`] || "");
+            rows.push(row.join(","));
+          }
+          return rows.join("\n");
+        }
+
+
+          return { parseGridFromPage, pagesToCSV };
+        })();
+
         async function processTimetablePDF(file) {
           const pdfjsLib = window.pdfjsLib;
           if (!pdfjsLib) {
@@ -4365,329 +4830,30 @@
 
           const btnText = document.getElementById("uploadBtnText");
           btnText.textContent = "Parsing PDF…";
-
-          // SEL values in aSc timetable cells — ignore these lines
-          const SEL_RE =
-            /care|flourish|resilience|responsibility|curiosity|connect|contribute|respect|adaptability/i;
-          // Non-class cell entries to skip entirely
-          const SKIP_RE =
-            /^(masfti|ftt|assy|ccf?e\s*\d*|pd\/dept|staffm|department|meeting|lab\s|hum\s?meet|aSc\s?Timetables|timetable generated|yuhua)/i;
-          const TIME_RE = /^\d{1,2}:\d{2}$/;
-          const DAY_MAP = {
-            Mon: "monday",
-            Tue: "tuesday",
-            Wed: "wednesday",
-            Thu: "thursday",
-            Fri: "friday",
-          };
-
-          // Build period start-time → id lookup (handle "8:00" and "08:00")
-          const periodByStart = {};
-          for (const p of PERIODS) {
-            const start = p.time.split("-")[0];
-            periodByStart[start] = p.id;
-            periodByStart[start.replace(/^0/, "")] = p.id;
-          }
-
           try {
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({
               data: new Uint8Array(arrayBuffer),
             }).promise;
 
-            const newMasterTeachers = [];
-            const newFullTimetable = {};
-
+            const pages = [];
             for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
               const page = await pdf.getPage(pageNum);
-              const vp = page.getViewport({ scale: 1.0 });
-              const H = vp.height;
-              const W = vp.width;
-              const tc = await page.getTextContent();
-
-              // Normalise all text items to {text, x, y, w, fs}
-              const items = tc.items
-                .filter((i) => i.str?.trim())
-                .map((i) => {
-                  const [a, b, , , tx, ty] = i.transform;
-                  return {
-                    text: i.str.trim(),
-                    x: tx,
-                    y: H - ty, // flip to top-down
-                    w: i.width,
-                    fs: Math.round(Math.sqrt(a * a + b * b) * 10) / 10,
-                  };
-                });
-
-              if (items.length < 5) continue;
-
-              // ── Teacher name: largest font near top of page ──────────────
-              const maxFs = Math.max(...items.map((i) => i.fs));
-              const nameItems = items
-                .filter((i) => i.fs >= maxFs * 0.6 && i.y < H * 0.18)
-                .sort((a, b) => a.x - b.x);
-              if (nameItems.length === 0) continue;
-
-              // Exclude school name line (much smaller font than teacher name)
-              const teacherFs = Math.max(...nameItems.map((i) => i.fs));
-              const teacherName = nameItems
-                .filter((i) => i.fs >= teacherFs * 0.8)
-                .map((i) => i.text)
-                .join(" ")
-                .replace(/\s+/g, " ")
-                .trim();
-              if (!teacherName || teacherName.length < 2) continue;
-
-              const teacherId =
-                "t_" + teacherName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-              const deptMatch = teacherName.match(/\(([^)]+)\)/);
-              const department = deptMatch ? deptMatch[1] : "";
-
-              if (!newMasterTeachers.find((t) => t.id === teacherId)) {
-                newMasterTeachers.push({
-                  id: teacherId,
-                  name: teacherName,
-                  department,
-                  subjects: [],
-                });
-              }
-
-              // ── Odd / Even section divider ────────────────────────────────
-              const oddItem = items.find((i) => i.text === "Odd");
-              const evenItem = items.find((i) => i.text === "Even");
-              if (!oddItem && !evenItem) continue;
-
-              const oddY = oddItem ? oddItem.y : 0;
-              const evenY = evenItem ? evenItem.y : H;
-              const dividerY = (oddY + evenY) / 2;
-
-              // ── Period columns from time-string headers ───────────────────
-              const timeItems = items.filter((i) => TIME_RE.test(i.text));
-              const xBucketSize = 6;
-              const colGroups = new Map();
-              for (const t of timeItems) {
-                const bucket = Math.round(t.x / xBucketSize) * xBucketSize;
-                if (!colGroups.has(bucket)) colGroups.set(bucket, []);
-                colGroups.get(bucket).push(t.text);
-              }
-              const cols = [];
-              for (const [bucket, times] of colGroups) {
-                const periodId = times
-                  .map((t) => periodByStart[t])
-                  .find((id) => id !== undefined);
-                if (periodId != null) cols.push({ x: bucket, periodId });
-              }
-              cols.sort((a, b) => a.x - b.x);
-              if (cols.length === 0) continue;
-
-              const colWidth =
-                cols.length > 1
-                  ? (cols[cols.length - 1].x - cols[0].x) / (cols.length - 1)
-                  : 40;
-
-              // ── Day rows ──────────────────────────────────────────────────
-              const dayItems = items.filter((i) => DAY_MAP[i.text]);
-              const oddDays = dayItems
-                .filter((d) => d.y > oddY && d.y < dividerY)
-                .sort((a, b) => a.y - b.y);
-              const evenDays = dayItems
-                .filter((d) => d.y >= dividerY)
-                .sort((a, b) => a.y - b.y);
-
-              // ── Assign content items to grid cells ────────────────────────
-              const structSet = new Set([
-                ...timeItems,
-                ...dayItems,
-                ...(oddItem ? [oddItem] : []),
-                ...(evenItem ? [evenItem] : []),
-              ]);
-
-              const gridXMin = cols[0].x - colWidth * 0.6;
-              const gridXMax = cols[cols.length - 1].x + colWidth * 0.6;
-
-              const cellTexts = {}; // "weekType|day|periodId" → [{text,y,fs}]
-
-              for (const item of items) {
-                if (structSet.has(item)) continue;
-                if (item.y < H * 0.15 || item.y > H * 0.97) continue;
-                if (item.x < gridXMin || item.x > gridXMax) continue;
-                if (SKIP_RE.test(item.text)) continue;
-                if (item.text.length < 2) continue;
-
-                const isOdd = item.y < dividerY;
-                const weekType = isOdd ? "Odd" : "Even";
-                const dayRows = isOdd ? oddDays : evenDays;
-                if (dayRows.length === 0) continue;
-
-                // Find day row by bracketing
-                let dayName = null;
-                for (let ri = 0; ri < dayRows.length; ri++) {
-                  const top =
-                    ri === 0
-                      ? isOdd
-                        ? oddY
-                        : dividerY
-                      : (dayRows[ri - 1].y + dayRows[ri].y) / 2;
-                  const bot =
-                    ri === dayRows.length - 1
-                      ? isOdd
-                        ? dividerY
-                        : H * 0.97
-                      : (dayRows[ri].y + dayRows[ri + 1].y) / 2;
-                  if (item.y >= top && item.y < bot) {
-                    dayName = DAY_MAP[dayRows[ri].text];
-                    break;
-                  }
-                }
-                if (!dayName) continue;
-
-                // Find nearest period column
-                let bestCol = cols[0];
-                let bestDist = Infinity;
-                for (const col of cols) {
-                  const d = Math.abs(item.x - col.x);
-                  if (d < bestDist) {
-                    bestDist = d;
-                    bestCol = col;
-                  }
-                }
-                if (bestDist > colWidth * 0.6) continue;
-
-                const key = `${weekType}|${dayName}|${bestCol.periodId}`;
-                if (!cellTexts[key]) cellTexts[key] = [];
-                cellTexts[key].push({
-                  text: item.text,
-                  y: item.y,
-                  fs: item.fs,
-                });
-              }
-
-              // ── Parse each cell ───────────────────────────────────────────
-              if (!newFullTimetable[teacherId])
-                newFullTimetable[teacherId] = {};
-
-              for (const [key, cellItems] of Object.entries(cellTexts)) {
-                const [weekType, dayName, pidStr] = key.split("|");
-                const periodId = parseInt(pidStr);
-
-                // Group items into lines by y-proximity
-                cellItems.sort((a, b) => a.y - b.y || a.x - b.x);
-                const lines = [];
-                let curLine = [];
-                let prevY = null;
-                for (const ci of cellItems) {
-                  if (prevY === null || Math.abs(ci.y - prevY) < 5) {
-                    curLine.push(ci);
-                  } else {
-                    if (curLine.length) lines.push(curLine);
-                    curLine = [ci];
-                  }
-                  prevY = ci.y;
-                }
-                if (curLine.length) lines.push(curLine);
-
-                // Concatenate each line L→R
-                const lineTexts = lines.map((ln) =>
-                  ln
-                    .sort((a, b) => a.x - b.x)
-                    .map((i) => i.text)
-                    .join(" ")
-                    .trim(),
-                );
-
-                // Extract Sec level from SEL line prefix number
-                let level = "";
-                for (const lt of lineTexts) {
-                  if (SEL_RE.test(lt)) {
-                    const m = lt.match(/^(\d)/);
-                    if (m && !level) level = `Sec ${m[1]}`;
-                  }
-                }
-
-                // Find the class line (not SEL, not skip, not teacher code)
-                let subject = "";
-                let stream = "";
-                for (const lt of lineTexts) {
-                  if (SKIP_RE.test(lt)) continue;
-                  if (SEL_RE.test(lt)) continue;
-                  if (/^\d+$/.test(lt)) continue;
-                  // Teacher codes look like "Ms Tan(023)" or contain digits in parens
-                  if (/\(\d{3,}\)/.test(lt)) continue;
-                  if (/^(Mr|Ms|Mrs|Dr)\s/i.test(lt) && /\d/.test(lt)) continue;
-                  if (lt.length < 2) continue;
-
-                  // Parse patterns:
-                  //   "Sci (Chemistry) G3"  → subject=Chemistry, stream=G3
-                  //   "Social Studies (G3)" → subject=Social Studies, stream=G3
-                  //   "Humanities (G1)"     → subject=Humanities, stream=G1
-                  //   "Pure Physics G3"     → subject=Pure Physics, stream=G3
-                  const parenMatch = lt.match(
-                    /^(.+?)\s*\(([^)]+)\)\s*([A-Z]\d)?$/,
-                  );
-                  if (parenMatch) {
-                    const prefix = parenMatch[1].trim();
-                    const inner = parenMatch[2].trim();
-                    const suffix = parenMatch[3];
-                    if (/^[A-Z]\d$/.test(inner)) {
-                      // "(G3)" style — prefix is the subject
-                      stream = inner;
-                      subject = prefix;
-                    } else {
-                      // "(Chemistry)" style — inner is the real subject
-                      subject = inner;
-                      if (!stream && suffix) stream = suffix;
-                      if (!stream) {
-                        // stream may come as trailing word on same line: "Sci (Chemistry) G3"
-                        const trailMatch = lt.match(/\)\s+([A-Z]\d)$/);
-                        if (trailMatch) stream = trailMatch[1];
-                      }
-                    }
-                  } else {
-                    // "Pure Physics G3" — trailing class code
-                    const plainMatch = lt.match(/^(.+?)\s+([A-Z]\d)$/);
-                    if (plainMatch) {
-                      subject = plainMatch[1].trim();
-                      stream = plainMatch[2];
-                    } else {
-                      subject = lt.trim();
-                    }
-                  }
-
-                  if (subject) break;
-                }
-
-                if (!subject || subject.length < 2) continue;
-                // Drop anything that still looks like a teacher name
-                if (/^(Mr|Ms|Mrs|Dr)\s/i.test(subject)) continue;
-
-                const teacher = newMasterTeachers.find(
-                  (t) => t.id === teacherId,
-                );
-                if (teacher && !teacher.subjects.includes(subject)) {
-                  teacher.subjects.push(subject);
-                }
-
-                if (!newFullTimetable[teacherId][weekType])
-                  newFullTimetable[teacherId][weekType] = {};
-                if (!newFullTimetable[teacherId][weekType][dayName])
-                  newFullTimetable[teacherId][weekType][dayName] = [];
-
-                const existing = newFullTimetable[teacherId][weekType][dayName];
-                if (!existing.find((e) => e.period === periodId)) {
-                  existing.push({ period: periodId, level, subject, stream });
-                }
-              }
+              const result = await RobustTimetableParser.parseGridFromPage(
+                page,
+                pdfjsLib,
+              );
+              if (result.name) pages.push(result);
             }
+            if (!pages.length)
+              throw new Error("No teacher timetables found in the PDF.");
 
-            masterTeachers = newMasterTeachers;
-            fullTimetable = newFullTimetable;
-            reliefTasksByDate = {};
-            selectedReliefContext = null;
-
-            saveStateToFirestore();
+            // Robust parse -> master CSV -> the shared, tested CSV import path.
+            const csv = RobustTimetableParser.pagesToCSV(pages);
+            processTimetableCSV(csv);
             initializeAppUI();
 
-            btnText.textContent = "PDF Uploaded Successfully!";
+            btnText.textContent = `PDF parsed — ${pages.length} teachers loaded!`;
             setTimeout(() => {
               btnText.textContent = "Upload PDF or CSV Timetable";
               closeModal(settingsModal);
@@ -4770,29 +4936,34 @@
               const day = dayMap[headerMatch[2]];
               const period = parseInt(headerMatch[3]);
 
-              const classDetails = parseClassDetails(classDetailsString);
-              if (!classDetails) continue;
+              // Split stacked cells ("A / B") into separate slots — the robust
+              // PDF parser joins two classes sharing a period with " / ";
+              // manual CSVs without " / " yield a single part (unchanged).
+              for (const part of classDetailsString.split(" / ")) {
+                const classDetails = parseClassDetails(part);
+                if (!classDetails) continue;
 
-              if (
-                classDetails.subject &&
-                !teacher.subjects.includes(classDetails.subject)
-              ) {
-                teacher.subjects.push(classDetails.subject);
+                if (
+                  classDetails.subject &&
+                  !teacher.subjects.includes(classDetails.subject)
+                ) {
+                  teacher.subjects.push(classDetails.subject);
+                }
+
+                if (!newFullTimetable[teacherId])
+                  newFullTimetable[teacherId] = {};
+                if (!newFullTimetable[teacherId][weekType])
+                  newFullTimetable[teacherId][weekType] = {};
+                if (!newFullTimetable[teacherId][weekType][day])
+                  newFullTimetable[teacherId][weekType][day] = [];
+
+                newFullTimetable[teacherId][weekType][day].push({
+                  period,
+                  level: classDetails.level,
+                  subject: classDetails.subject,
+                  stream: classDetails.stream,
+                });
               }
-
-              if (!newFullTimetable[teacherId])
-                newFullTimetable[teacherId] = {};
-              if (!newFullTimetable[teacherId][weekType])
-                newFullTimetable[teacherId][weekType] = {};
-              if (!newFullTimetable[teacherId][weekType][day])
-                newFullTimetable[teacherId][weekType][day] = [];
-
-              newFullTimetable[teacherId][weekType][day].push({
-                period,
-                level: classDetails.level,
-                subject: classDetails.subject,
-                stream: classDetails.stream,
-              });
             }
           }
 

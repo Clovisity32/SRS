@@ -1,6 +1,7 @@
 node_modules/
 debug/
 test-results/
+.firebase/
 *.pdf
 *.jpeg
 *.jpg

@@ -72,6 +72,11 @@ Within tiers, candidates are sorted by daily load then weekly relief load (ascen
 
 Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 period columns after the `Teacher` column). Cell values are parsed by `parseClassDetails()` which extracts level (`Sec N`), subject, and stream from strings like `"3 Math E1"`. Download the template via the Settings modal to see the exact format.
 
+- **Cell format is `level subject stream`** e.g. `1 Physics G2` → `Sec 1` / `Physics` / `G2`. The level must be a **bare leading number** (`1`), not `Sec 1` — the regex `^(\d+)\s` only matches a leading digit, so `Sec 1 …` gets absorbed into the subject. Stream is a trailing letter+digit (`G2`, `E1`). Special values: `assy` → Assembly, `pd/dept/staffm` → Meeting.
+- **Teacher column = `Name (Department)`** — the text in trailing parentheses becomes the teacher's `department`.
+- **A class only renders on the matching week-type + weekday.** A cell filled only under `Odd Mon P1` is stored at `fullTimetable[id].Odd.monday` and shows solely on Odd-week Mondays. If an imported class "doesn't appear," check the viewed date's week type against **Term Start Dates** before assuming the import failed. Classes that run every week must be entered under **both** `Odd …` and `Even …` columns.
+- **The parser splits rows on `,` naively (no quote-escaping)** — no field (name, subject, stream) may contain a comma.
+
 ## Firebase
 
 - Project: `smart-relief-system`
@@ -82,6 +87,13 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
   - Path allowlist: only `app_data/main` accessible; wildcard deny covers everything else
   - Write validation: 5 required top-level keys, type checks on `masterTeachers` (list), `messageTemplate` (string), `termStartDates` (map with term1–4)
 - `saveStateToFirestore()` shows a red toast on write failure (including `permission-denied`) — if saves silently fail, redeploy rules first.
+
+## Data Persistence / Firestore Sync
+
+- **Never seed mock data or overwrite `app_data/main` on a non-authoritative snapshot.** `getFirestore()` uses memory-only cache, so a `onSnapshot` listener that starts **offline / before the server replies** delivers `docSnap.exists() === false` from an empty cache — _not_ a true missing doc. The `else` branch must only call `initializeAppStateAndSave()` when `!docSnap.metadata.fromCache && !hasLoadedRealData` (a confirmed **server** read of a genuinely empty project). All writes are full-document `setDoc` overwrites, so a single bad write wipes everything — this was the root cause of the periodic data-loss bug.
+- **`setupApp`/`runApp` runs once per signed-in uid.** Guarded by module-scoped `setupUid` (`if (user.uid === setupUid) return`); the `onSnapshot` unsubscribe is held in `appUnsub` and torn down on sign-out. `onAuthStateChanged` re-fires (token refresh, tab wake, redirect flows) — do **not** re-run setup on each fire or you stack listeners and duplicate DOM handlers.
+- **`onSnapshot` must pass an error callback** (2nd arg) → `window.showSaveError(err)`; without it, permission/offline errors fail silently.
+- **After `firebase deploy --only hosting`, verify the change is actually live** — `curl` the deployed URL and grep for a unique marker from the diff (e.g. a new identifier). Don't trust "Deploy complete!" alone.
 
 ## CSP Notes
 
@@ -120,22 +132,23 @@ Headers follow the pattern `Odd Mon P1`, `Odd Mon P2`, … `Even Fri P16` (160 p
 
 ## Changelog
 
-| Date    | What Changed                                                                                                                                                                     |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-06 | Mobile UX phase 2: `min-w-0` on `<main>`, removed `-mx-3` from table containers; all 3 tabs + Assign Relief modal verified at 390px via Playwright                               |
-| 2026-06 | Mobile UX: step badges in Assign Relief modal, flex-col-reverse button layout, tab scroll shadow, hint text on disabled CTA                                                      |
-| 2026-06 | Message template customisation added to Settings modal; persisted to Firestore                                                                                                   |
-| 2026-06 | XSS hardening: `esc()` helper, Map-based data attributes, DOM API teacher dropdown, 8 innerHTML call sites wrapped                                                               |
-| 2026-06 | SRI integrity hashes on DayJS ×4 and PDF.js CDN scripts; 15 MB upload size guard added                                                                                           |
-| 2026-06 | Firestore security rules added (`firestore.rules` + `firebase.json`): auth gate, path allowlist, write shape validation                                                          |
-| 2026-06 | CSP `<meta>` tag added to `index.html`; `unsafe-inline`/`unsafe-eval` documented as Tailwind Play CDN constraints                                                                |
-| 2026-06 | XSS follow-up: 4 missed `esc()` sites fixed (sidebar task card, relief load table, daily summary classText + assignedTeacher)                                                    |
-| 2026-06 | XSS follow-up: 6 `data-*` attribute sites wrapped with `esc()` (data-task-id, data-msg-key); UX baseline audit 1.25/5 (7/7 Playwright); `.gitignore` and `tests/ux/` infra added |
-| 2026-06 | feat(generalise): configurable period settings (`generatePeriods`), subject equivalence groups (Tier 2 matching), department filter dropdown + teacher assignment in Settings    |
-| 2026-06 | Security follow-up: 4 pre-existing `data-teacher-id="\${teacher.id}"` sites in `renderTeacherRow()` wrapped with `esc()`; grep audit pattern added to Security Rules             |
-| 2026-06 | feat(email): teacher email field, CSV Email column, mailto: Send Email button (both teachers); blockedSlotsByDate preserved on re-import                                         |
-| 2026-06 | Security: email addresses validated with regex before mailto: URL construction to prevent header injection                                                                       |
-| 2026-06 | feat(auth): Google OAuth replaces anonymous sign-in; admin/coordinator roles; allowlist in Firestore; open-mode banner; access denied screen                                     |
-| 2026-06 | fix(auth): sidebar/header/mobile nav hidden until `initializeAppUI()` confirms access; auth-visibility Playwright spec added                                                     |
-| 2026-06 | fix(auth): self-lockout prevention (auto-add current user as admin on first save); sign-in button uses `.onclick` so retry works after failure; popup-blocked error message      |
-| 2026-06 | fix(save): flush pending email input on Save & Close; `showSaveError()` toast surfaces silent write failures; redeployed `firestore.rules` (stale rules were root cause)         |
+| Date    | What Changed                                                                                                                                                                                              |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06 | Mobile UX phase 2: `min-w-0` on `<main>`, removed `-mx-3` from table containers; all 3 tabs + Assign Relief modal verified at 390px via Playwright                                                        |
+| 2026-06 | Mobile UX: step badges in Assign Relief modal, flex-col-reverse button layout, tab scroll shadow, hint text on disabled CTA                                                                               |
+| 2026-06 | Message template customisation added to Settings modal; persisted to Firestore                                                                                                                            |
+| 2026-06 | XSS hardening: `esc()` helper, Map-based data attributes, DOM API teacher dropdown, 8 innerHTML call sites wrapped                                                                                        |
+| 2026-06 | SRI integrity hashes on DayJS ×4 and PDF.js CDN scripts; 15 MB upload size guard added                                                                                                                    |
+| 2026-06 | Firestore security rules added (`firestore.rules` + `firebase.json`): auth gate, path allowlist, write shape validation                                                                                   |
+| 2026-06 | CSP `<meta>` tag added to `index.html`; `unsafe-inline`/`unsafe-eval` documented as Tailwind Play CDN constraints                                                                                         |
+| 2026-06 | XSS follow-up: 4 missed `esc()` sites fixed (sidebar task card, relief load table, daily summary classText + assignedTeacher)                                                                             |
+| 2026-06 | XSS follow-up: 6 `data-*` attribute sites wrapped with `esc()` (data-task-id, data-msg-key); UX baseline audit 1.25/5 (7/7 Playwright); `.gitignore` and `tests/ux/` infra added                          |
+| 2026-06 | feat(generalise): configurable period settings (`generatePeriods`), subject equivalence groups (Tier 2 matching), department filter dropdown + teacher assignment in Settings                             |
+| 2026-06 | Security follow-up: 4 pre-existing `data-teacher-id="\${teacher.id}"` sites in `renderTeacherRow()` wrapped with `esc()`; grep audit pattern added to Security Rules                                      |
+| 2026-06 | feat(email): teacher email field, CSV Email column, mailto: Send Email button (both teachers); blockedSlotsByDate preserved on re-import                                                                  |
+| 2026-06 | Security: email addresses validated with regex before mailto: URL construction to prevent header injection                                                                                                |
+| 2026-06 | feat(auth): Google OAuth replaces anonymous sign-in; admin/coordinator roles; allowlist in Firestore; open-mode banner; access denied screen                                                              |
+| 2026-06 | fix(auth): sidebar/header/mobile nav hidden until `initializeAppUI()` confirms access; auth-visibility Playwright spec added                                                                              |
+| 2026-06 | fix(auth): self-lockout prevention (auto-add current user as admin on first save); sign-in button uses `.onclick` so retry works after failure; popup-blocked error message                               |
+| 2026-06 | fix(save): flush pending email input on Save & Close; `showSaveError()` toast surfaces silent write failures; redeployed `firestore.rules` (stale rules were root cause)                                  |
+| 2026-06 | fix(data): offline-safe `onSnapshot` — stop seeding/overwriting `app_data/main` with mock data on cache/offline `exists()===false`; setup once per uid; snapshot error callback; deployed + verified live |
